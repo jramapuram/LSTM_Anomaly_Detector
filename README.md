@@ -11,9 +11,9 @@ The entire signal as it is presented to the network [sliding window] :
 
 The signal approximation (mean) :
 
-![Alt text](/../screenshots/images/sliding_unrolled.png?raw=true "Full signal's sliding window mean")
+![Alt text](/../screenshots/images/rolled_up_wave.png?raw=true "Full signal's sliding window mean")
 
 The MSE output of the LSTM detector:
 
-![Alt text](/../screenshots/images/sliding_unrolled.png?raw=true "LSTM detector output")
+![Alt text](/../screenshots/images/LSTM_classification.png?raw=true "LSTM detector output")
 
