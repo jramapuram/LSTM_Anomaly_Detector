@@ -17,3 +17,6 @@ The MSE output of the LSTM detector:
 
 ![Alt text](/../screenshots/images/LSTM_classification.png?raw=true "LSTM detector output")
 
+The number of noise samples added (and caught):
+
+![Alt text](/../screenshots/images/caught.png?raw=true "LSTM detector output")
