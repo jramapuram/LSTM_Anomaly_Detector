@@ -5,6 +5,9 @@ __pycache__/
 # pycharm
 .idea
 
+# crappy osx stuff
+.DS_Store
+
 # C extensions
 *.so
 
