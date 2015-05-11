@@ -2,6 +2,7 @@ __author__ = 'jramapuram'
 
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import Normalizer
 
 from itertools import islice
 
@@ -15,6 +16,9 @@ def plot_wave(wave, title='wave function'):
 
 def elementwise_square(list):
     return [i ** 2 for i in list]
+
+def normalize(mat):
+    return Normalizer().fit_transform(mat)
 
 # http://stackoverflow.com/questions/6822725/rolling-or-sliding-window-iterator-in-python
 def window(seq, n=2):

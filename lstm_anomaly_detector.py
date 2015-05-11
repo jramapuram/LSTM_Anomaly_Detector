@@ -24,7 +24,7 @@ Options:
     --loss=<lossFn>               the loss function [default: mean_squared_error]
     --max_epochs=<iter>           the max number of epochs to iterate for [default: 10]
     --truncated_gradient=<bool>   1 or -1 for truncation of gradient [default: -1]
-    --test_split_ratio=<ratio>    number between 0 and 1 for which the test is split into [default: 0.3]
+    --test_split_ratio=<ratio>    number between 0 and 1 for which the test is split into [default: 0.1]
 
 """
 
@@ -52,6 +52,13 @@ if __name__ == "__main__":
     else:
         reader = CSVReader(conf)
         X_train, X_test = reader.split_data()
+        print 'X_train.shape %s | X_test.shape: %s' % (X_train.shape, X_test.shape)
+
+    # for item in X_train:
+    #     print 'train shp: ', item.shape
+    #
+    # for item in X_test:
+    #     print 'test shp: ', item.shape
 
     # build an LSTM or a regular autoencoder
     from autoencoder import AutoEncoder

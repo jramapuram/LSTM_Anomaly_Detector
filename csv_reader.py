@@ -17,15 +17,15 @@ class CSVReader(DataSource):
         self.read_bad_lines = False
 
     def read_data(self):
-        self.data = self.window_data(pd.read_csv(self.path, error_bad_lines=self.read_bad_lines).values)
+        self.data = self.window_data(pd.read_csv(self.path, error_bad_lines=self.read_bad_lines).values.flatten())
         print 'read %s elements from %s' % (self.data.shape, self.path)
-        print self.data
-        return self.data
+        return data_manipulator.normalize(self.data)
 
     def split_data(self):
         if self.data.empty:
             self.data = self.read_data()
-        return train_test_split(self.data, test_size=self.test_ratio)
+        x_train, x_test = train_test_split(self.data, test_size=self.test_ratio)
+        return x_train, np.matrix(x_test)
 
     def window_data(self, data):
         generator = data_manipulator.window(data, int(self.conf['--input_dim']))
