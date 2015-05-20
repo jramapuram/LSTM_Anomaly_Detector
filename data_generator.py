@@ -12,8 +12,10 @@ class DataGenerator(DataSource):
     def __init__(self, conf):
         self.conf = conf
         self.data = np.matrix([])
-        self.train = np.matrix([])
-        self.test = np.matrix([])
+        self.x_train = np.matrix([])
+        self.x_test = np.matrix([])
+        self.y_train = np.array([])
+        self.y_test = np.array([])
         self.noise_count = 0
 
     @staticmethod
@@ -36,16 +38,16 @@ class DataGenerator(DataSource):
                                       , int(self.conf['--num_periods']))
         generator = window(wave, int(self.conf['--input_dim']))
         self.data = np.array([item for item in generator])
-        self.train, self.test = train_test_split(self.data, test_size=float(self.conf['--test_ratio']))
-        self.test = self.add_amplitude_noise(self.test, 13)  # XXX
-        print self.train.shape, self.test.shape
-        return self.train
+        self.x_train, self.x_test = train_test_split(self.data, test_size=float(self.conf['--test_ratio']))
+        self.x_test = self.add_amplitude_noise(self.x_test, 13)  # XXX
+        print self.x_train.shape, self.x_test.shape
+        return self.x_train
 
     def split_data(self):
         if self.data.size == 0:
             self.read_data()
         # TODO: Generate a y output vector where noise is added
-        return (self.train, np.array([])), (self.test, np.array([]))
+        return (self.x_train, np.array([])), (self.x_test, np.array([]))
 
     def get_noise_count(self):
         return self.noise_count

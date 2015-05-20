@@ -14,32 +14,45 @@ class CSVReader(DataSource):
         self.conf = conf
         self.data = (np.matrix([]), np.matrix([]))
         self.input_column = self.conf['--input_col']
-        self.test_column = self.conf['--test_col']
+        self.use_cols = [self.input_column]
+        self.has_classes = False
+
+        if conf['--test_col'] is not None:
+            self.test_column = self.conf['--test_col']
+            self.classes = np.array
+            self.use_cols.append(self.test_column)
+            self.has_classes = True
+
         self.raw_data = pd.DataFrame()
         self.inputs = np.array
-        self.classes = np.array
         self.path = conf['--input']
         self.test_ratio = float(conf['--test_ratio'])
         self.read_bad_lines = False
 
     def read_data(self):
         self.raw_data = pd.read_csv(self.path, error_bad_lines=self.read_bad_lines
-                                    , usecols=[self.input_column, self.test_column])
-        self.classes = self.raw_data[self.test_column].values.flatten()
+                                    , usecols=self.use_cols)
         self.inputs = self.raw_data[self.input_column].values.flatten()
+        plot_wave(self.inputs, 'original input data [pre window]')
 
         # TODO: Duplicate data by tiling + N(0,1) or something similar. Just tiling adds no new info
         # self.classes = np.tile(self.classes, 5)
         # self.inputs = np.tile(self.inputs, 5)
 
-        plot_wave(self.inputs, 'original input data [pre window]')
-        plot_wave(self.classes, 'original class data [pre window]')
+        if self.has_classes:
+            self.classes = self.raw_data[self.test_column].values.flatten()
+            plot_wave(self.classes, 'original class data [pre window]')
+            self.data = (self.window_data(self.inputs), self.window_data(self.classes))
+        else:
+            self.data = (self.window_data(self.inputs),)
 
-        self.data = (self.window_data(self.inputs), self.window_data(self.classes))
+        print 'Data Stats:\n\t-windowed %s elements (originally %s)\n\t-file:%s\n\t-columns: [%s]' \
+              % (self.data[0].shape, self.inputs.shape, self.path, ', '.join(self.use_cols))
 
-        print 'Data Stats:\n\t-windowed %s elements (originally %s)\n\t-file:%s\n\t-columns: [%s, %s]' \
-              % (self.data[0].shape, self.inputs.shape, self.path, self.input_column, self.test_column)
-        return data_manipulator.normalize(self.data[0]), self.data[1]
+        if self.has_classes:
+            return data_manipulator.normalize(self.data[0]), self.data[1]
+        else:
+            return data_manipulator.normalize(self.data[0]), None
 
     def get_classes(self):
         return self.classes
@@ -51,14 +64,22 @@ class CSVReader(DataSource):
         return self.raw_data
 
     def get_noise_count(self):
-        return len(self.classes[np.where(self.classes > 0)])
+        if self.has_classes:
+            return len(self.classes[np.where(self.classes > 0)])
+        else:
+            return -1
 
     def split_data(self):
         if self.data[0].size == 0:
             self.data = self.read_data()
-        (x_train, x_test), (y_train, y_test) = train_test_split(self.data[0], test_size=self.test_ratio)\
-                                               , train_test_split(self.data[1], test_size=self.test_ratio)
-        return (x_train, y_train), (x_test, y_test)
+
+        if self.has_classes:
+            (x_train, x_test), (y_train, y_test) = train_test_split(self.data[0], test_size=self.test_ratio)\
+                                                   , train_test_split(self.data[1], test_size=self.test_ratio)
+            return (x_train, y_train), (x_test, y_test)
+        else:
+            (x_train, x_test) = train_test_split(self.data[0], test_size=self.test_ratio)
+            return (x_train, np.array([])), (x_test, np.array([]))
 
     def window_data(self, data):
         generator = data_manipulator.window(data, int(self.conf['--input_dim']))

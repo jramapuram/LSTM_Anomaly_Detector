@@ -26,7 +26,7 @@ class Classifier:
         model_name = model_structure % (int(self.conf['--input_dim'])
                                         , 1
                                         , int(self.conf['--batch_size'])
-                                        , int(self.conf['--max_epochs']) * 10  # TODO: parametrize properly
+                                        , int(self.conf['--max_epochs_classifier'])
                                         , self.model_type)
         model_exists = self.load_model(model_name, self.model)
 
@@ -36,7 +36,7 @@ class Classifier:
 
             self.model.fit(X_train, Y_train
                            , batch_size=int(self.conf['--batch_size'])
-                           , nb_epoch=int(self.conf['--max_epochs']) * 10  # TODO: parametrize properly
+                           , nb_epoch=int(self.conf['--max_epochs_classifier'])
                            , validation_split=float(self.conf['--validation_ratio'])
                            , show_accuracy=True)
             print 'saving model to %s...' % model_name

@@ -2,8 +2,8 @@
 
 Usage:
     lstm_anomaly_detector.py (-h | --help | --version)
-    lstm_anomaly_detector.py synthetic [--quiet] [--model_type=<type>] [--inner_activation=<activationFn>] [--num_periods=<periods>] [--max_features=<features>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
-    lstm_anomaly_detector.py csv (--input=<FILE>) (--input_col=<column>) (--test_col=<column>) [--quiet] [--model_type=<type>] [--inner_activation=<activationFn>] [--max_features=<features>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
+    lstm_anomaly_detector.py synthetic [--quiet] [--model_type=<type>] [--inner_activation=<activationFn>] [--num_periods=<periods>] [--max_features=<features>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs=<iter>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
+    lstm_anomaly_detector.py csv (--input=<FILE>) (--input_col=<column>) [--test_col=<column>] [--quiet] [--model_type=<type>] [--inner_activation=<activationFn>] [--max_features=<features>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs=<iter>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
 
 Options:
     -h --help                           show this
@@ -11,7 +11,7 @@ Options:
     --quiet                             print less text [default: False]
     --input=<FILE>                      csv file if in csv mode
     --input_col=<column>                the column to read our value data from [default: value]
-    --test_col=<column>                 the column which contains the binary vector for the anomaly [default: is_anomaly]
+    --test_col=<column>                 the column which contains the binary vector for the anomaly
     --model_type=<type>                 either "lstm" or "classical" [default: lstm]
     --num_periods=<periods>             number of periods of the signal to generate [default: 32]
     --max_features=<features>           number of max features used for LSTM embeddings [default: 20000]
@@ -24,7 +24,8 @@ Options:
     --inner_init=<type>                 inner activation for LSTM [default: orthogonal]
     --optimizer=<type>                  optimizer type [default: adam]
     --loss=<lossFn>                     the loss function [default: mean_squared_error]
-    --max_epochs=<iter>                 the max number of epochs to iterate for [default: 1000]
+    --max_epochs=<iter>                 the max number of epochs to iterate for the autoencoder [default: 1000]
+    --max_epochs_classifier=<iter>      the max number of epochs to iterate for the classifier [default: 1000]
     --truncated_gradient=<bool>         1 or -1 for truncation of gradient [default: -1]
     --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.1]
     --validation_ratio=<ratio>          number between 0 and 1 for which the data is split for validation [default: 0.3]
@@ -99,8 +100,7 @@ if __name__ == "__main__":
     print 'ae_test_pred shape : %s | ae_test_mean_predictions shape: %s' \
           % (ae_test_predictions.shape, ae_test_mean_predictions.shape)
 
-    # A little hacky, make this globally applicable
-    if not conf['synthetic']:
+    if conf['--test_col'] is not None:
         # format the output vectors
         y_train_vector = np.array([1 if y_train[np.where(item >= 1)].size else 0 for item in y_train])
         y_test_vector = np.array([1 if y_test[np.where(item >= 1)].size else 0 for item in y_test])
@@ -109,8 +109,8 @@ if __name__ == "__main__":
         # build a classifier
         from classifier import Classifier
         cf = Classifier('classical', conf)
-        print 'building classifier...'
-        # cf.add_lstm() # TODO: Find out why this breaks stuff
+        print 'building %s classifier...' % cf.get_model_type()
+        # cf.add_lstm() # TODO: Figure out how to map the 3d tensor to a 2d one
         cf.add_dense()
         cf.train_classifier(ae_predictions, y_train_vector)
         cf_model = cf.get_model()
@@ -126,6 +126,6 @@ if __name__ == "__main__":
         print 'classifier prediction size: ', predictions.shape
         print '[test] number of anomalies detected: ', len(predictions[np.where(predictions > 0)])
         print '[train] number of anomalies detected: ', len(predictions_train[np.where(predictions_train > 0)])
-        print 'number of anomalies originally: ', source.get_noise_count()
 
+    print 'number of anomalies originally: ', source.get_noise_count()
     plt.show()
