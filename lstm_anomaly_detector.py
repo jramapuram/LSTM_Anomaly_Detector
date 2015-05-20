@@ -35,17 +35,16 @@ __author__ = 'jramapuram'
 
 import numpy as np
 import matplotlib.pyplot as plt
-import data_manipulator
+from data_manipulator import is_power2, plot_wave
 from docopt import docopt
 from csv_reader import CSVReader
-from data_source import DataSource
 from data_generator import DataGenerator
 
 if __name__ == "__main__":
     conf = docopt(__doc__, version='LSTM Anomaly Detector 0.1')
     # GPU needs power of 2
-    assert data_manipulator.is_power2(int(conf['--input_dim']))
-    assert data_manipulator.is_power2(int(conf['--hidden_dim']))
+    assert is_power2(int(conf['--input_dim']))
+    assert is_power2(int(conf['--hidden_dim']))
 
     # determine whether to pull in fake data or a csv file
     if conf['synthetic']:
@@ -89,14 +88,14 @@ if __name__ == "__main__":
     # run data through autoencoder (so that it can be pulled into classifier)
     ae_predictions = ae.predict_mse(x_train)
     ae_mean_predictions = ae.predict_mse_mean(x_train)
-    data_manipulator.plot_wave(ae_mean_predictions, 'training autoencoder mse')
+    plot_wave(ae_mean_predictions, 'training autoencoder mse')
     print 'ae_pred shape : %s | ae_mean_predictions shape: %s' % (ae_predictions.shape, ae_mean_predictions.shape)
     # np.savetxt("training_mse.csv", ae_mean_predictions, delimiter=",")
 
     # predict on just the test data
     ae_test_predictions = ae.predict(x_test)
     ae_test_mean_predictions = ae.predict_mse_mean(x_test)
-    data_manipulator.plot_wave(ae_test_mean_predictions, 'test autoencoder mse')
+    plot_wave(ae_test_mean_predictions, 'test autoencoder mse')
     print 'ae_test_pred shape : %s | ae_test_mean_predictions shape: %s' \
           % (ae_test_predictions.shape, ae_test_mean_predictions.shape)
 
@@ -121,9 +120,8 @@ if __name__ == "__main__":
                                 for item in cf_model.predict(ae.predict_mse(x_test))])
         predictions_train = np.array([1 if item >= 0.5 else 0
                                       for item in cf_model.predict(ae.predict_mse(x_train))])
-        data_manipulator.plot_wave(predictions, 'Classifier Predictions')
-        data_manipulator.plot_wave(y_test_vector, 'True test anomalies')
-        data_manipulator.plot_wave(predictions_train, 'Classifier train predicitions')
+        plot_wave(predictions, '[test] Classifier Predictions')
+        plot_wave(predictions_train, '[train] Classifier predicitions')
 
         print 'classifier prediction size: ', predictions.shape
         print '[test] number of anomalies detected: ', len(predictions[np.where(predictions > 0)])
