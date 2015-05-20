@@ -12,3 +12,7 @@ class DataSource(object):
     @abstractmethod
     def split_data(self):
         pass
+
+    @abstractmethod
+    def get_noise_count(self):
+        pass

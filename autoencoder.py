@@ -6,86 +6,100 @@ from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
+from keras.optimizers import SGD
 
 
 class AutoEncoder:
-    def __init__(self, conf, X_train, X_test=None, model_type='LSTM'):
-        self.model_type = 'LSTM'
+    def __init__(self, conf):
         self.conf = conf
-        self.model = None
+        self.model = Sequential()
 
-        if self.model_type == 'LSTM':
-            self.model = self.build_lstm_autoencoder(self.conf)
+        # Ideally we need to pass in a 3d vector: (nb_samples, timesteps, input_dim)
+        # This works for now. TODO: Explore alternative strategies or just get the timesteps?
+        if self.conf['--model_type'].strip().lower() == 'lstm':
+            self.model.add(Embedding(int(self.conf['--max_features']), int(self.conf['--input_dim'])))
+
+    def train_autoencoder(self, X_train):
+        self.model.get_config(verbose=1)
+        if self.conf['--optimizer'] == 'sgd':
+            # customize SGD as the defauly keras one does not use momentum or nesterov
+            sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
+            self.model.compile(loss=self.conf['--loss'], optimizer=sgd)
         else:
-            self.model = self.build_autoencoder(self.conf)
+            self.model.compile(loss=self.conf['--loss'], optimizer=self.conf['--optimizer'])
 
-        self.model.describe()
-        self.train_autoencoder(X_train, X_test)
-
-    def train_autoencoder(self, X_train, X_test):
-        model_structure = 'weights_%din_%dhid_%dbatch_%depochs.dat'
+        model_structure = 'weights_%din_%dhid_%dbatch_%depochs_%s_autoencoder.dat'
         model_name = model_structure % (int(self.conf['--input_dim'])
                                         , int(self.conf['--hidden_dim'])
                                         , int(self.conf['--batch_size'])
-                                        , int(self.conf['--max_epochs']))
+                                        , int(self.conf['--max_epochs'])
+                                        , self.conf['--model_type'])
         model_exists = self.load_model(model_name, self.model)
 
         if not model_exists:
-            print 'training new model...'
+            print 'training new model using %s loss function & %s optimizer...' \
+                  % (self.conf['--loss'], self.conf['--optimizer'])
+
             self.model.fit(X_train, X_train
                            , batch_size=int(self.conf['--batch_size'])
                            , nb_epoch=int(self.conf['--max_epochs'])
-                           , validation_split=float(self.conf['--max_epochs'])
+                           , validation_split=float(self.conf['--validation_ratio'])
                            , show_accuracy=True)
             print 'saving model to %s...' % model_name
             self.model.save_weights(model_name)
 
-        if X_test is not None:
-            test_eval = [self.model.evaluate(item, item, batch_size=1, show_accuracy=False, verbose=False) for item in X_test]
-            print 'test evaluation: ', test_eval
+    def add_autoencoder(self, input_size, hidden_size, output_size):
+        self.model.add(Dense(input_size, hidden_size
+                             , init=self.conf['--initialization']
+                             , activation=self.conf['--activation']))
+        self.model.add(Dropout(0.5))
+        self.model.add(Dense(hidden_size, output_size
+                             , init=self.conf['--initialization']
+                             , activation=self.conf['--activation']))
+        # self.model.add(Activation('relu'))
+        # self.model.add(Activation(self.conf['--activation']))
+        return self.model
 
-    @staticmethod
-    def build_autoencoder(conf):
-        model = Sequential()
-        model.add(Dense(int(conf['--input_dim'])
-                        , int(conf['--hidden_dim'])
-                        , init=conf['--initialization']
-                        , activation=conf['--activation']))
-        model.add(Dropout(0.5))
-        model.add(Dense(int(conf['--hidden_dim'])
-                        , int(conf['--input_dim'])
-                        , init=conf['--initialization']
-                        , activation=conf['--activation']))
-        # model.add(Activation(conf['--activation']))
-        model.compile(loss=conf['--loss'], optimizer=conf['--optimizer'])
-        return model
+    def add_lstm_autoencoder(self, input_size, hidden_size, output_size, is_final_layer=False):
+        self.model.add(LSTM(input_size, hidden_size
+                            , activation=self.conf['--activation']
+                            , inner_activation=self.conf['--inner_activation']
+                            , init=self.conf['--initialization']
+                            , inner_init=self.conf['--inner_init']
+                            , truncate_gradient=int(self.conf['--truncated_gradient'])
+                            , return_sequences=True))
+        self.model.add(Dropout(0.5))
+        self.model.add(LSTM(hidden_size, output_size
+                       , activation=self.conf['--activation']
+                       , inner_activation=self.conf['--inner_activation']
+                       , init=self.conf['--initialization']
+                       , inner_init=self.conf['--inner_init']
+                       , truncate_gradient=int(int(self.conf['--truncated_gradient']))
+                       , return_sequences=(not is_final_layer)))
+        # self.model.add(Activation(self.conf['--activation']))
+        return self.model
 
-    @staticmethod
-    def build_lstm_autoencoder(conf):
-        model = Sequential()
-        model.add(Embedding(int(conf['--max_features']), int(conf['--input_dim'])))
-        model.add(LSTM(int(conf['--input_dim']), int(conf['--hidden_dim'])
-                       , activation=conf['--activation']
-                       , inner_activation=conf['--inner_init']
-                       , init=conf['--initialization']
-                       , truncate_gradient=int(conf['--truncated_gradient'])
-                       , return_sequences=True))
-        model.add(Dropout(0.5))
-        model.add(LSTM(int(conf['--hidden_dim']), int(conf['--input_dim'])
-                       , activation=conf['--activation']
-                       , inner_activation=conf['--inner_init']
-                       , init=conf['--initialization']
-                       , truncate_gradient=int(int(conf['--truncated_gradient']))
-                       , return_sequences=False))
-        #  model.add(Activation(conf['--activation']))
-        model.compile(loss=conf['--loss'], optimizer=conf['--optimizer'])
-        return model
+    def predict_mse_mean(self, test):
+        import numpy as np
+        mse_predictions = np.array([np.mean(item) for item in self.predict_mse(test)]).flatten()
+        assert len(mse_predictions) == len(test)
+        return mse_predictions
+
+    def predict_mse(self, test):
+        import numpy as np
+        from data_manipulator import elementwise_square
+        mse_predictions = np.array([(elementwise_square((xtrue - xpred).T)).flatten()
+                                    for xtrue, xpred in zip(test, self.predict(test))])
+        return mse_predictions
+
+    def predict(self, test):
+        return self.model.predict(test, verbose=False)
 
     def get_model(self):
         return self.model
 
     def get_model_type(self):
-        return self.model_type
+        return self.conf['--model_type']
 
     @staticmethod
     def load_model(path_str, model):
