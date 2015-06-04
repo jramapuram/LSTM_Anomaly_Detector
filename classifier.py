@@ -43,11 +43,15 @@ class Classifier:
             self.model.save_weights(model_name)
 
     def add_dense(self):
+        # self.model.add(MaxoutDense(output_size
+        #                            , output_size
+        #                            , W_regularizer=l2(.01)
+        #                            , init=self.conf['--initialization']))
         self.model.add(Dense(int(self.conf['--input_dim'])
                              , 1
                              , init=self.conf['--initialization']
                              , activation=self.conf['--activation']))
-
+        # self.model.add(Activation('softmax'))
         # model.add(Activation(conf['--activation']))
 
         return self.model
@@ -61,7 +65,7 @@ class Classifier:
                             , inner_init=self.conf['--inner_init']
                             , truncate_gradient=int(self.conf['--truncated_gradient'])
                             , return_sequences=False))
-
+        self.model.add(Activation('softmax'))
         #  model.add(Activation(conf['--activation']))
         return self.model
 

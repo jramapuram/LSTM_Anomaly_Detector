@@ -3,6 +3,7 @@ __author__ = 'jramapuram'
 import data_manipulator
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 from data_source import DataSource
 from data_manipulator import plot_wave
 
@@ -30,29 +31,31 @@ class CSVReader(DataSource):
         self.read_bad_lines = False
 
     def read_data(self):
-        self.raw_data = pd.read_csv(self.path, error_bad_lines=self.read_bad_lines
+        self.raw_data = pd.read_csv(self.path
+                                    , error_bad_lines=self.read_bad_lines
                                     , usecols=self.use_cols)
-        self.inputs = self.raw_data[self.input_column].values.flatten()
-        plot_wave(self.inputs, 'original input data [pre window]')
+        self.inputs = data_manipulator.normalize(self.raw_data[self.input_column].values.flatten()).T
 
-        # TODO: Duplicate data by tiling + N(0,1) or something similar. Just tiling adds no new info
+        # TODO: Duplicate data by tiling + N(0,1) or something similar. Just tiling adds no new info [verified]
         # self.classes = np.tile(self.classes, 5)
         # self.inputs = np.tile(self.inputs, 5)
 
         if self.has_classes:
             self.classes = self.raw_data[self.test_column].values.flatten()
-            plot_wave(self.classes, 'original class data [pre window]')
-            self.data = (self.window_data(self.inputs), self.window_data(self.classes))
+            # plot_wave(self.classes, 'original class data [pre window]')
+            # self.data = (self.window_data(self.inputs), self.window_data(self.classes))
+            self.data = (self.inputs, self.classes)
         else:
-            self.data = (self.window_data(self.inputs),)
+            # self.data = (self.window_data(self.inputs),)
+            self.data = (self.inputs,)
 
         print 'Data Stats:\n\t-windowed %s elements (originally %s)\n\t-file:%s\n\t-columns: [%s]' \
               % (self.data[0].shape, self.inputs.shape, self.path, ', '.join(self.use_cols))
 
         if self.has_classes:
-            return data_manipulator.normalize(self.data[0]), self.data[1]
+            return self.data[0], self.data[1]
         else:
-            return data_manipulator.normalize(self.data[0]), None
+            return self.data[0], None
 
     def get_classes(self):
         return self.classes
@@ -73,13 +76,37 @@ class CSVReader(DataSource):
         if self.data[0].size == 0:
             self.data = self.read_data()
 
+        # TODO: Cleanup clunky
         if self.has_classes:
-            (x_train, x_test), (y_train, y_test) = train_test_split(self.data[0], test_size=self.test_ratio)\
-                                                   , train_test_split(self.data[1], test_size=self.test_ratio)
-            return (x_train, y_train), (x_test, y_test)
+            # below does random shuffling, this might cause problems with the model learning useful things
+            # (x_train, x_test), (y_train, y_test) = train_test_split(self.data[0], test_size=self.test_ratio)\
+            #                                        , train_test_split(self.data[1], test_size=self.test_ratio)
+            (x_train, x_test) = data_manipulator.split(self.data[0], self.test_ratio)
+            (y_train, y_test) = data_manipulator.split(self.data[1], self.test_ratio)
+
+            x_train = x_train.flatten()
+            x_test = x_test.flatten()
+            y_train = y_train.flatten()
+            y_test = y_test.flatten()
+
+            plot_wave(x_train, 'original train data')
+            plot_wave(x_test, 'original test data')
+            plot_wave(y_test, 'original test class')
+            plot_wave(y_train, 'original train class')
+
+            return (self.window_data(x_train), self.window_data(y_train)), (self.window_data(x_test), self.window_data(y_test))
         else:
-            (x_train, x_test) = train_test_split(self.data[0], test_size=self.test_ratio)
-            return (x_train, np.array([])), (x_test, np.array([]))
+            # below does random shuffling, this might cause problems with the model learning useful things
+            # (x_train, x_test) = train_test_split(self.data[0], test_size=self.test_ratio)
+            (x_train, x_test) = data_manipulator.split(self.data[0], self.test_ratio)
+
+            x_train = x_train.flatten()
+            x_test = x_test.flatten()
+
+            plot_wave(x_train, 'original train data')
+            plot_wave(x_test, 'original test data')
+
+            return (self.window_data(x_train), np.array([])), (self.window_data(x_test), np.array([]))
 
     def window_data(self, data):
         generator = data_manipulator.window(data, int(self.conf['--input_dim']))

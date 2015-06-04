@@ -31,6 +31,17 @@ def elementwise_square(list):
 def normalize(mat):
     return Normalizer().fit_transform(mat)
 
+def split(mat, test_ratio):
+    train_ratio = 1.0 - test_ratio
+    train_index = np.floor(len(mat) * train_ratio)
+    if mat.ndim == 2:
+        return mat[0:train_index, :], mat[train_index + 1:len(mat) - 1, :]
+    elif mat.ndim == 1:
+        return mat[0:train_index], mat[train_index + 1:len(mat) - 1]
+    else:
+        print 'dimensionality is not 2 or 1!'
+        raise NotImplementedError
+
 # http://stackoverflow.com/questions/6822725/rolling-or-sliding-window-iterator-in-python
 def window(seq, n=2):
     "Returns a sliding window (of width n) over data from the iterable"

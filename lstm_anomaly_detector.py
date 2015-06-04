@@ -18,7 +18,7 @@ Options:
     --activation=<activationFn>         activation function [default: sigmoid]
     --inner_activation=<activationFn>   inner activation used for lstm [default: hard_sigmoid]
     --input_dim=<num>                   number of values into the input layer [default: 64]
-    --hidden_dim=<num>                  number of values for the hidden layer [default: 64]
+    --hidden_dim=<num>                  number of values for the hidden layer [default: 32]
     --batch_size=<num>                  number of values to batch for performance [default: 64]
     --initialization=<type>             type of weight initialization [default: glorot_uniform]
     --inner_init=<type>                 inner activation for LSTM [default: orthogonal]
@@ -36,6 +36,7 @@ __author__ = 'jramapuram'
 
 import numpy as np
 import matplotlib.pyplot as plt
+from copy import deepcopy
 from data_manipulator import is_power2, plot_wave
 from docopt import docopt
 from csv_reader import CSVReader
@@ -44,8 +45,8 @@ from data_generator import DataGenerator
 if __name__ == "__main__":
     conf = docopt(__doc__, version='LSTM Anomaly Detector 0.1')
     # GPU needs power of 2
-    assert is_power2(int(conf['--input_dim']))
-    assert is_power2(int(conf['--hidden_dim']))
+    # assert is_power2(int(conf['--input_dim']))
+    # assert is_power2(int(conf['--hidden_dim']))
 
     # determine whether to pull in fake data or a csv file
     if conf['synthetic']:
@@ -61,37 +62,32 @@ if __name__ == "__main__":
     print 'X_test.shape %s  | Y_test.shape: %s' % (x_test.shape, y_test.shape)
 
     # build an LSTM or a regular autoencoder
-    from autoencoder import AutoEncoder
+    from autoencoder import TimeDistributedAutoEncoder
     print 'building %s autoencoder...' % conf['--model_type']
-    ae = AutoEncoder(conf)
+    ae = TimeDistributedAutoEncoder(conf)
 
     # Add the required layers
-    print conf['--model_type'].strip().lower()
     if conf['--model_type'].strip().lower() == 'lstm':
-        ae.add_lstm_autoencoder(int(conf['--input_dim'])
-                                , int(conf['--hidden_dim'])
-                                , int(conf['--hidden_dim']) / 2)
-        ae.add_lstm_autoencoder(int(conf['--hidden_dim']) / 2
-                                , int(conf['--hidden_dim'])
-                                , int(conf['--input_dim'])
-                                , is_final_layer=True)
+        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
+                                , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
     else:
-        ae.add_autoencoder(int(conf['--input_dim'])
-                           , int(conf['--hidden_dim'])
-                           , int(conf['--hidden_dim']) / 2)
-        ae.add_autoencoder(int(conf['--hidden_dim']) / 2
-                           , int(conf['--hidden_dim'])
-                           , int(conf['--input_dim']))
+        # Deep autoencoder:
+        # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim']), int(conf['--hidden_dim'])/2, int(conf['--hidden_dim'])/4]
+        #                    , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
-    ae.train_autoencoder(x_train)
-    model = ae.get_model()
+        # Single autoencoder:
+        ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
+                               [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+    ae.train_autoencoder(x_train, -1)
 
     # run data through autoencoder (so that it can be pulled into classifier)
     ae_predictions = ae.predict_mse(x_train)
+    print 'ae_predictions.shape: ', ae_predictions.shape
+
     ae_mean_predictions = ae.predict_mse_mean(x_train)
     plot_wave(ae_mean_predictions, 'training autoencoder mse')
     print 'ae_pred shape : %s | ae_mean_predictions shape: %s' % (ae_predictions.shape, ae_mean_predictions.shape)
-    # np.savetxt("training_mse.csv", ae_mean_predictions, delimiter=",")
+    np.savetxt("training_mse.csv", ae_mean_predictions, delimiter=",")
 
     # predict on just the test data
     ae_test_predictions = ae.predict(x_test)
@@ -106,7 +102,6 @@ if __name__ == "__main__":
         y_test_vector = np.array([1 if y_test[np.where(item >= 1)].size else 0 for item in y_test])
         print 'y_train_vector shape :', y_train_vector.shape
 
-        # build a classifier
         from classifier import Classifier
         cf = Classifier('classical', conf)
         print 'building %s classifier...' % cf.get_model_type()
