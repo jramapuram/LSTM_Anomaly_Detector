@@ -30,6 +30,11 @@ class CSVReader(DataSource):
         self.test_ratio = float(conf['--test_ratio'])
         self.read_bad_lines = False
 
+        self.x_train = None
+        self.x_test = None
+        self.y_train = None
+        self.y_test = None
+
     def read_data(self):
         self.raw_data = pd.read_csv(self.path
                                     , error_bad_lines=self.read_bad_lines
@@ -72,6 +77,9 @@ class CSVReader(DataSource):
         else:
             return -1
 
+    def get_original_data(self):
+        return self.x_train, self.y_train, self.x_test, self.y_test
+
     def split_data(self):
         if self.data[0].size == 0:
             self.data = self.read_data()
@@ -84,29 +92,31 @@ class CSVReader(DataSource):
             (x_train, x_test) = data_manipulator.split(self.data[0], self.test_ratio)
             (y_train, y_test) = data_manipulator.split(self.data[1], self.test_ratio)
 
-            x_train = x_train.flatten()
-            x_test = x_test.flatten()
-            y_train = y_train.flatten()
-            y_test = y_test.flatten()
+            self.x_train = x_train.flatten()
+            self.x_test = x_test.flatten()
+            self.y_train = y_train.flatten()
+            self.y_test = y_test.flatten()
 
-            plot_wave(x_train, 'original train data')
-            plot_wave(x_test, 'original test data')
-            plot_wave(y_test, 'original test class')
-            plot_wave(y_train, 'original train class')
+            plot_wave(self.x_train, 'original train data')
+            plot_wave(self.x_test, 'original test data')
+            plot_wave(self.y_test, 'original test class')
+            plot_wave(self.y_train, 'original train class')
 
-            return (self.window_data(x_train), self.window_data(y_train)), (self.window_data(x_test), self.window_data(y_test))
+            return (self.window_data(self.x_train), self.window_data(self.y_train))\
+                , (self.window_data(self.x_test), self.window_data(self.y_test))
         else:
             # below does random shuffling, this might cause problems with the model learning useful things
             # (x_train, x_test) = train_test_split(self.data[0], test_size=self.test_ratio)
             (x_train, x_test) = data_manipulator.split(self.data[0], self.test_ratio)
 
-            x_train = x_train.flatten()
-            x_test = x_test.flatten()
+            self.x_train = x_train.flatten()
+            self.x_test = x_test.flatten()
 
-            plot_wave(x_train, 'original train data')
-            plot_wave(x_test, 'original test data')
+            plot_wave(self.x_train, 'original train data')
+            plot_wave(self.x_test, 'original test data')
 
-            return (self.window_data(x_train), np.array([])), (self.window_data(x_test), np.array([]))
+            return (self.window_data(self.x_train), np.array([]))\
+                , (self.window_data(self.x_test), np.array([]))
 
     def window_data(self, data):
         generator = data_manipulator.window(data, int(self.conf['--input_dim']))

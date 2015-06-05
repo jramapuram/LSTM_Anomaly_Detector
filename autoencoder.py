@@ -47,7 +47,7 @@ class TimeDistributedAutoEncoder:
             self.model.fit(X_train, roll(X_train, rotate_forward_count, axis=0)
                            , batch_size=int(self.conf['--batch_size'])
                            , nb_epoch=int(self.conf['--max_epochs'])
-                           #, validation_split=float(self.conf['--validation_ratio'])
+                           , validation_split=float(self.conf['--validation_ratio'])
                            , show_accuracy=True
                            , shuffle=False)
             print 'saving model to %s...' % model_name

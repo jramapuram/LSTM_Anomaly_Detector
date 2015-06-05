@@ -3,6 +3,7 @@ __author__ = 'jramapuram'
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import Normalizer
+from scipy.signal import wiener
 
 from itertools import islice
 
@@ -29,7 +30,10 @@ def elementwise_square(list):
     return np.square(list)
 
 def normalize(mat):
-    return Normalizer().fit_transform(mat)
+    plot_wave(mat, 'prewhitened')
+    whitened = wiener(mat)
+    # whitened = PCA(whiten=True).fit_transform(np.matrix(mat).T).flatten()
+    return Normalizer(norm='l2').fit_transform(whitened)
 
 def split(mat, test_ratio):
     train_ratio = 1.0 - test_ratio
