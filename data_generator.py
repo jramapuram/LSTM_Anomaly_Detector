@@ -5,7 +5,7 @@ import numpy as np
 from data_source import DataSource
 from random import randint
 from math import sin, pi
-from data_manipulator import window, plot_wave
+from data_manipulator import window, plot_wave, split, normalize
 from sklearn.cross_validation import train_test_split
 
 class DataGenerator(DataSource):
@@ -22,10 +22,11 @@ class DataGenerator(DataSource):
     def generate_sin_wave(input_size, num_waves, offset=1):
         delta = 2 * pi / (input_size - offset)  # for proper shifting
         one_wave = [sin(delta * i) for i in xrange(0, input_size)]
-        return one_wave * num_waves
+        return normalize(np.array(one_wave * num_waves)).flatten()
+        # return one_wave * num_waves
 
     def add_amplitude_noise(self, signal, num_errors=1):
-        signal = np.array(signal)
+        # signal = np.array(signal)
         max_len = len(signal)
         for i in xrange(0, num_errors):
             location = randint(0, max_len - 1)
@@ -36,10 +37,13 @@ class DataGenerator(DataSource):
     def read_data(self):
         wave = self.generate_sin_wave(int(self.conf['--input_dim'])
                                       , int(self.conf['--num_periods']))
+        print len(wave)
+        plot_wave(wave, 'train')
         generator = window(wave, int(self.conf['--input_dim']))
         self.data = np.array([item for item in generator])
-        self.x_train, self.x_test = train_test_split(self.data, test_size=float(self.conf['--test_ratio']))
+        self.x_train, self.x_test = split(self.data, float(self.conf['--test_ratio']))
         self.x_test = self.add_amplitude_noise(self.x_test, 13)  # XXX
+
         print self.x_train.shape, self.x_test.shape
         return self.x_train
 

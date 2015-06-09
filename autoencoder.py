@@ -3,13 +3,14 @@ __author__ = 'jramapuram'
 import os.path
 
 from numpy import roll, newaxis
-from sklearn.preprocessing import Normalizer
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, AutoEncoder
+from keras.layers.core import Dense, Dropout, AutoEncoder, Activation
 from keras.layers.recurrent import LSTM
 from keras.optimizers import SGD
 from keras.utils.dot_utils import Grapher
-from keras.regularizers import l2
+from keras.regularizers import l2, zero
+from convolutional import Convolution1D, MaxPooling1D
+
 
 
 class TimeDistributedAutoEncoder:
@@ -49,7 +50,7 @@ class TimeDistributedAutoEncoder:
                            , nb_epoch=int(self.conf['--max_epochs'])
                            , validation_split=float(self.conf['--validation_ratio'])
                            , show_accuracy=True
-                           , shuffle=False)
+                           , shuffle=True)
             print 'saving model to %s...' % model_name
             self.model.save_weights(model_name)
 
@@ -57,55 +58,90 @@ class TimeDistributedAutoEncoder:
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
         assert(len(encoder_sizes) == len(decoder_sizes))
 
-        encoders = []
-        decoders = []
+        encoders = Sequential()
+        decoders = Sequential()
         for i in range(0, len(encoder_sizes) - 1):
-            encoders.append(Dense(encoder_sizes[i], encoder_sizes[i + 1]
-                                  , init=self.conf['--initialization']
-                                  , activation=self.conf['--activation']
-                                  , W_regularizer=l2()))
-            decoders.append(Dense(decoder_sizes[i], decoder_sizes[i + 1]
-                                  , init=self.conf['--initialization']
-                                  , activation=self.conf['--activation']
-                                  , W_regularizer=l2()))
+            encoders.add(Dense(encoder_sizes[i], encoder_sizes[i + 1]
+                               , init=self.conf['--initialization']
+                               , activation=self.conf['--activation']
+                               , W_regularizer=zero))
 
-        self.model.add(AutoEncoder(encoders=encoders
-                                   , decoders=decoders
+            decoders.add(Dense(decoder_sizes[i], decoder_sizes[i + 1]
+                               , init=self.conf['--initialization']
+                               , activation=self.conf['--activation']
+                               , W_regularizer=l2()))
+
+        self.model.add(AutoEncoder(encoder=encoders
+                                   , decoder=decoders
                                    , tie_weights=True
                                    , output_reconstruction=True))
         return self.model
+
+    # (batch size, stack size, nb row, nb col)
+    def add_conv_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
+        assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
+        assert(len(encoder_sizes) == len(decoder_sizes))
+
+        encoders = Sequential()
+        decoders = Sequential()
+        # for i in range(0, len(encoder_sizes) - 1):
+        encoders.add(Convolution1D(32, 3, 3
+                                      , activation=self.conf['--activation']
+                                      , init=self.conf['--initialization']
+                                      , border_mode='valid'))
+        encoders.add(Activation('relu'))
+        encoders.add(MaxPooling1D())
+        encoders.add(Convolution1D(32, 1, 1
+                                      , activation=self.conf['--activation']
+                                      , init=self.conf['--initialization']
+                                      , border_mode='valid'))
+
+        decoders.add(Convolution1D(32, 1, 1
+                                      , activation=self.conf['--activation']
+                                      , init=self.conf['--initialization']
+                                      , border_mode='valid'))
+        decoders.add(Activation('relu'))
+        decoders.add(MaxPooling1D())
+        decoders.add(Convolution1D(32, 3, 3
+                                      , activation=self.conf['--activation']
+                                      , init=self.conf['--initialization']
+                                      , border_mode='valid'))
+
+        self.model.add(AutoEncoder(encoder=encoders
+                                   , decoder=decoders
+                                   , tie_weights=True
+                                   , output_reconstruction=True))
 
     def add_lstm_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
         assert(len(encoder_sizes) == len(decoder_sizes))
 
-        encoders = []
-        decoders = []
+        encoders = Sequential()
+        decoders = Sequential()
         for i in range(0, len(encoder_sizes) - 1):
-            encoders.append(LSTM(encoder_sizes[i], encoder_sizes[i + 1]
-                                 , activation=self.conf['--activation']
-                                 , inner_activation=self.conf['--inner_activation']
-                                 , init=self.conf['--initialization']
-                                 , inner_init=self.conf['--inner_init']
-                                 , truncate_gradient=int(self.conf['--truncated_gradient'])
-                                 , return_sequences=True))
-            decoders.append(LSTM(decoder_sizes[i], decoder_sizes[i + 1]
-                                 , activation=self.conf['--activation']
-                                 , inner_activation=self.conf['--inner_activation']
-                                 , init=self.conf['--initialization']
-                                 , inner_init=self.conf['--inner_init']
-                                 , truncate_gradient=int(int(self.conf['--truncated_gradient']))
-                                 , return_sequences=not (i == len(encoder_sizes) - 1)))
+            encoders.add(LSTM(encoder_sizes[i], encoder_sizes[i + 1]
+                              , activation=self.conf['--activation']
+                              , inner_activation=self.conf['--inner_activation']
+                              , init=self.conf['--initialization']
+                              , inner_init=self.conf['--inner_init']
+                              , truncate_gradient=int(self.conf['--truncated_gradient'])
+                              , return_sequences=True))
+            decoders.add(LSTM(decoder_sizes[i], decoder_sizes[i + 1]
+                              , activation=self.conf['--activation']
+                              , inner_activation=self.conf['--inner_activation']
+                              , init=self.conf['--initialization']
+                              , inner_init=self.conf['--inner_init']
+                              , truncate_gradient=int(int(self.conf['--truncated_gradient']))
+                              , return_sequences=not (i == len(encoder_sizes) - 1)))
 
-        self.model.add(AutoEncoder(encoders=encoders
-                                   , decoders=decoders
+        self.model.add(AutoEncoder(encoder=encoders
+                                   , decoder=decoders
                                    , tie_weights=True
                                    , output_reconstruction=True))
         return self.model
 
     def predict_mse_mean(self, test):
-        predictions = self.predict_mse(test) #This looks reasonable
-        # predictions = self.predict(test)
+        predictions = self.predict_mse(test)
         mse_predictions = predictions.mean(axis=1)
         assert len(mse_predictions) == len(test)
         return mse_predictions
@@ -113,8 +149,7 @@ class TimeDistributedAutoEncoder:
     def predict_mse(self, test):
         from data_manipulator import elementwise_square
         predictions = self.predict(test)
-        mse_predictions = elementwise_square(Normalizer().fit_transform(test)
-                                             - Normalizer().fit_transform(predictions))
+        mse_predictions = elementwise_square(test - predictions)
         return mse_predictions
 
     def predict(self, test):

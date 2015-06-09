@@ -67,8 +67,12 @@ if __name__ == "__main__":
     ae = TimeDistributedAutoEncoder(conf)
 
     # Add the required layers
-    if conf['--model_type'].strip().lower() == 'lstm':
+    model_type = conf['--model_type'].strip().lower()
+    if model_type == 'lstm':
         ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
+                                , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+    elif model_type == 'conv':
+        ae.add_conv_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
                                 , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
     else:
         # Deep autoencoder:
@@ -77,7 +81,7 @@ if __name__ == "__main__":
 
         # Single autoencoder:
         ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
-                               [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+                           [int(conf['--hidden_dim']), int(conf['--input_dim'])])
     ae.train_autoencoder(x_train, -1)
 
     # run data through autoencoder (so that it can be pulled into classifier)
@@ -105,7 +109,6 @@ if __name__ == "__main__":
         from classifier import Classifier
         cf = Classifier('classical', conf)
         print 'building %s classifier...' % cf.get_model_type()
-        # cf.add_lstm() # TODO: Figure out how to map the 3d tensor to a 2d one
         cf.add_dense()
         cf.train_classifier(ae_predictions, y_train_vector)
         cf_model = cf.get_model()
