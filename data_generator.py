@@ -5,12 +5,13 @@ import numpy as np
 from data_source import DataSource
 from random import randint
 from math import sin, pi
-from data_manipulator import window, plot_wave, split, normalize
-from sklearn.cross_validation import train_test_split
+from data_manipulator import window, split, normalize
+# from sklearn.cross_validation import train_test_split
 
 class DataGenerator(DataSource):
-    def __init__(self, conf):
+    def __init__(self, conf, plotter):
         self.conf = conf
+        self.p = plotter
         self.data = np.matrix([])
         self.x_train = np.matrix([])
         self.x_test = np.matrix([])
@@ -38,7 +39,7 @@ class DataGenerator(DataSource):
         wave = self.generate_sin_wave(int(self.conf['--input_dim'])
                                       , int(self.conf['--num_periods']))
         print len(wave)
-        plot_wave(wave, 'train')
+        self.p.plot_wave(wave, 'train')
         generator = window(wave, int(self.conf['--input_dim']))
         self.data = np.array([item for item in generator])
         self.x_train, self.x_test = split(self.data, float(self.conf['--test_ratio']))

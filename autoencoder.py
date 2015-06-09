@@ -12,11 +12,27 @@ from keras.regularizers import l2, zero
 from convolutional import Convolution1D, MaxPooling1D
 
 
-
 class TimeDistributedAutoEncoder:
     def __init__(self, conf):
         self.conf = conf
+        self.model_dir = ''
+        self.model_name = ''
+        self.encoder_sizes = []
+        self.decoder_sizes = []
         self.model = Sequential()
+
+    @property
+    def get_model_name(self):
+        model_structure = 'weights_[%s]Enc_[%s]Dec_%dbatch_%depochs_%s_autoencoder.dat'
+        model_name = model_structure % ('_'.join(str(e) for e in self.encoder_sizes)
+                                        , '_'.join(str(d) for d in self.decoder_sizes)
+                                        , int(self.conf['--batch_size'])
+                                        , int(self.conf['--max_epochs'])
+                                        , self.conf['--model_type'])
+        model_dir = model_name.replace("weights_", "").replace(".dat", "")
+        from data_manipulator import create_dir
+        create_dir(model_dir)
+        return model_dir, model_name
 
     def train_autoencoder(self, X_train, rotate_forward_count=-1):
         self.model.get_config(verbose=1)
@@ -27,15 +43,8 @@ class TimeDistributedAutoEncoder:
         else:
             self.model.compile(loss=self.conf['--loss'], optimizer=self.conf['--optimizer'])
 
-        model_structure = 'weights_%din_%dhid_%dbatch_%depochs_%s_autoencoder.dat'
-        model_name = model_structure % (int(self.conf['--input_dim'])
-                                        , int(self.conf['--hidden_dim'])
-                                        , int(self.conf['--batch_size'])
-                                        , int(self.conf['--max_epochs'])
-                                        , self.conf['--model_type'])
-        model_exists = self.load_model(model_name, self.model)
-
-        Grapher().plot(self.model, 'model.png')
+        self.model_dir, self.model_name = self.get_model_name
+        model_exists = self.load_model(os.path.join(self.model_dir, self.model_name), self.model)
 
         if not model_exists:
             print 'training new model using %s loss function & %s optimizer...' \
@@ -51,12 +60,16 @@ class TimeDistributedAutoEncoder:
                            , validation_split=float(self.conf['--validation_ratio'])
                            , show_accuracy=True
                            , shuffle=True)
-            print 'saving model to %s...' % model_name
-            self.model.save_weights(model_name)
+            print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
+            self.model.save_weights(os.path.join(self.model_dir, self.model_name))
+        Grapher().plot(self.model, os.path.join(self.model_dir, 'model.png'))
 
     def add_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
         assert(len(encoder_sizes) == len(decoder_sizes))
+
+        self.encoder_sizes = encoder_sizes
+        self.decoder_sizes = decoder_sizes
 
         encoders = Sequential()
         decoders = Sequential()
@@ -81,6 +94,9 @@ class TimeDistributedAutoEncoder:
     def add_conv_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
         assert(len(encoder_sizes) == len(decoder_sizes))
+
+        self.encoder_sizes = encoder_sizes
+        self.decoder_sizes = decoder_sizes
 
         encoders = Sequential()
         decoders = Sequential()
@@ -115,6 +131,9 @@ class TimeDistributedAutoEncoder:
     def add_lstm_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
         assert(len(encoder_sizes) == len(decoder_sizes))
+
+        self.encoder_sizes = encoder_sizes
+        self.decoder_sizes = decoder_sizes
 
         encoders = Sequential()
         decoders = Sequential()

@@ -5,18 +5,18 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from data_source import DataSource
-from data_manipulator import plot_wave
 
 from sklearn.cross_validation import train_test_split
 
 
 class CSVReader(DataSource):
-    def __init__(self, conf):
+    def __init__(self, conf, plotter):
         self.conf = conf
         self.data = (np.matrix([]), np.matrix([]))
         self.input_column = self.conf['--input_col']
         self.use_cols = [self.input_column]
         self.has_classes = False
+        self.p = plotter
 
         if conf['--test_col'] is not None:
             self.test_column = self.conf['--test_col']
@@ -39,7 +39,7 @@ class CSVReader(DataSource):
         self.raw_data = pd.read_csv(self.path
                                     , error_bad_lines=self.read_bad_lines
                                     , usecols=self.use_cols)
-        self.inputs = data_manipulator.normalize(self.raw_data[self.input_column].values.flatten()).T
+        self.inputs = data_manipulator.flt(data_manipulator.normalize(self.raw_data[self.input_column].values.flatten()).T)
 
         # TODO: Duplicate data by tiling + N(0,1) or something similar. Just tiling adds no new info [verified]
         # self.classes = np.tile(self.classes, 5)
@@ -47,7 +47,7 @@ class CSVReader(DataSource):
 
         if self.has_classes:
             self.classes = self.raw_data[self.test_column].values.flatten()
-            # plot_wave(self.classes, 'original class data [pre window]')
+            # self.p.plot_wave(self.classes, 'original class data [pre window]')
             # self.data = (self.window_data(self.inputs), self.window_data(self.classes))
             self.data = (self.inputs, self.classes)
         else:
@@ -97,10 +97,10 @@ class CSVReader(DataSource):
             self.y_train = y_train.flatten()
             self.y_test = y_test.flatten()
 
-            plot_wave(self.x_train, 'original train data')
-            plot_wave(self.x_test, 'original test data')
-            plot_wave(self.y_test, 'original test class')
-            plot_wave(self.y_train, 'original train class')
+            self.p.plot_wave(self.x_train, 'original train data')
+            self.p.plot_wave(self.x_test, 'original test data')
+            self.p.plot_wave(self.y_test, 'original test class')
+            self.p.plot_wave(self.y_train, 'original train class')
 
             return (self.window_data(self.x_train), self.window_data(self.y_train))\
                 , (self.window_data(self.x_test), self.window_data(self.y_test))
@@ -112,8 +112,8 @@ class CSVReader(DataSource):
             self.x_train = x_train.flatten()
             self.x_test = x_test.flatten()
 
-            plot_wave(self.x_train, 'original train data')
-            plot_wave(self.x_test, 'original test data')
+            self.p.plot_wave(self.x_train, 'original train data')
+            self.p.plot_wave(self.x_test, 'original test data')
 
             return (self.window_data(self.x_train), np.array([]))\
                 , (self.window_data(self.x_test), np.array([]))

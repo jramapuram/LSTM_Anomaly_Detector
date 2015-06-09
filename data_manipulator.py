@@ -1,5 +1,7 @@
 __author__ = 'jramapuram'
 
+import os
+import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import Normalizer
@@ -7,19 +9,43 @@ from scipy.signal import wiener
 
 from itertools import islice
 
+class Plot:
+    def __init__(self, conf, autoencoder):
+        self.conf = conf
+        self.plots = []
+        self.ae = autoencoder
+        self.model_dir = ''
+
+    def plot_wave(self, wave, title='wave function', minmax=[]):
+        fig = plt.figure()
+        plt.plot(wave)
+        self.plots.append(fig)
+
+        if not minmax:
+            plt.ylim([np.min(wave), np.max(wave)])
+        else:
+            assert len(minmax) == 2
+            plt.ylim(minmax)
+        fig.suptitle(title)
+
+    def show(self):
+        if bool(self.conf['--plot_live']):
+            plt.show()
+        else:
+            self.model_dir, _ = self.ae.get_model_name
+            create_dir(self.model_dir)
+            index = 0
+            for plot in self.plots:
+                plot.savefig(os.path.join(self.model_dir, str(index) + '.png'))
+                index += 1
+
+def create_dir(model_dir):
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+
 def split_vector(vec, split_size):
     return np.reshape(vec[0:split_size*np.floor(len(vec)/float(split_size))]
                       , (-1, split_size))
-
-def plot_wave(wave, title='wave function', minmax=[]):
-    fig = plt.figure()
-    plt.plot(wave)
-    if not minmax:
-        plt.ylim([np.min(wave), np.max(wave)])
-    else:
-        assert len(minmax) == 2
-        plt.ylim(minmax)
-    fig.suptitle(title)
 
 # http://code.activestate.com/recipes/577514-chek-if-a-number-is-a-power-of-two/
 def is_power2(num):
@@ -29,11 +55,13 @@ def is_power2(num):
 def elementwise_square(list):
     return np.square(list)
 
-def normalize(mat):
-    plot_wave(mat, 'prewhitened')
+def flt(mat):
     whitened = wiener(mat)
     # whitened = PCA(whiten=True).fit_transform(np.matrix(mat).T).flatten()
-    return Normalizer(norm='l2').fit_transform(whitened)
+    return whitened
+
+def normalize(mat):
+    return Normalizer(norm='l2').fit_transform(mat)
 
 def split(mat, test_ratio):
     train_ratio = 1.0 - test_ratio
