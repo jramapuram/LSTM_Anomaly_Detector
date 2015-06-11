@@ -16,3 +16,7 @@ class DataSource(object):
     @abstractmethod
     def get_noise_count(self):
         pass
+
+    @abstractmethod
+    def get_original_data(self):
+        pass

@@ -32,14 +32,15 @@ class CSVReader(DataSource):
 
         self.x_train = None
         self.x_test = None
-        self.y_train = None
-        self.y_test = None
+        self.y_train = np.array([])
+        self.y_test = np.array([])
 
     def read_data(self):
         self.raw_data = pd.read_csv(self.path
                                     , error_bad_lines=self.read_bad_lines
                                     , usecols=self.use_cols)
-        self.inputs = data_manipulator.flt(data_manipulator.normalize(self.raw_data[self.input_column].values.flatten()).T)
+        # data_manipulator.flt(
+        self.inputs = data_manipulator.normalize(self.raw_data[self.input_column].values.flatten()).T
 
         # TODO: Duplicate data by tiling + N(0,1) or something similar. Just tiling adds no new info [verified]
         # self.classes = np.tile(self.classes, 5)
@@ -54,8 +55,8 @@ class CSVReader(DataSource):
             # self.data = (self.window_data(self.inputs),)
             self.data = (self.inputs,)
 
-        print 'Data Stats:\n\t-windowed %s elements (originally %s)\n\t-file:%s\n\t-columns: [%s]' \
-              % (self.data[0].shape, self.inputs.shape, self.path, ', '.join(self.use_cols))
+        print 'Data Stats:\n\t-windowed %s elements\n\t-file:%s\n\t-columns: [%s]' \
+              % (self.data[0].shape, self.path, ', '.join(self.use_cols))
 
         if self.has_classes:
             return self.data[0], self.data[1]
@@ -115,8 +116,8 @@ class CSVReader(DataSource):
             self.p.plot_wave(self.x_train, 'original train data')
             self.p.plot_wave(self.x_test, 'original test data')
 
-            return (self.window_data(self.x_train), np.array([]))\
-                , (self.window_data(self.x_test), np.array([]))
+            return (self.window_data(self.x_train), self.y_train)\
+                , (self.window_data(self.x_test), self.y_test)
 
     def window_data(self, data):
         generator = data_manipulator.window(data, int(self.conf['--input_dim']))

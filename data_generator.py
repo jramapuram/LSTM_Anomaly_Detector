@@ -38,7 +38,6 @@ class DataGenerator(DataSource):
     def read_data(self):
         wave = self.generate_sin_wave(int(self.conf['--input_dim'])
                                       , int(self.conf['--num_periods']))
-        print len(wave)
         self.p.plot_wave(wave, 'train')
         generator = window(wave, int(self.conf['--input_dim']))
         self.data = np.array([item for item in generator])
@@ -52,7 +51,7 @@ class DataGenerator(DataSource):
         if self.data.size == 0:
             self.read_data()
         # TODO: Generate a y output vector where noise is added
-        return (self.x_train, np.array([])), (self.x_test, np.array([]))
+        return (self.x_train, self.y_train), (self.x_test, self.y_test)
 
     def get_noise_count(self):
         return self.noise_count

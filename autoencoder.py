@@ -2,10 +2,10 @@ __author__ = 'jramapuram'
 
 import os.path
 
-from numpy import roll, newaxis
+from numpy import newaxis
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, AutoEncoder, Activation
-from keras.layers.recurrent import LSTM
+from keras.layers.recurrent import LSTM, GRU
 from keras.optimizers import SGD
 from keras.utils.dot_utils import Grapher
 from keras.regularizers import l2, zero
@@ -52,14 +52,14 @@ class TimeDistributedAutoEncoder:
 
             # Need to create a 3d vector [samples, timesteps, input_dim]
             if self.conf['--model_type'].strip().lower() == 'lstm':
-                X_train = X_train[:, newaxis, :]
+                X_train = X_train[:, newaxis, :]  # [samples, timesteps, input_dim]
                 print 'modified training data to fit LSTM: ', X_train.shape
-            self.model.fit(X_train, roll(X_train, rotate_forward_count, axis=0)
+            from data_manipulator import roll_rows
+            self.model.fit(X_train, roll_rows(X_train, rotate_forward_count)
                            , batch_size=int(self.conf['--batch_size'])
                            , nb_epoch=int(self.conf['--max_epochs'])
                            , validation_split=float(self.conf['--validation_ratio'])
-                           , show_accuracy=True
-                           , shuffle=True)
+                           , show_accuracy=True, shuffle=False, early_stop_lookback=3)
             print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
             self.model.save_weights(os.path.join(self.model_dir, self.model_name))
         Grapher().plot(self.model, os.path.join(self.model_dir, 'model.png'))
@@ -90,6 +90,7 @@ class TimeDistributedAutoEncoder:
                                    , output_reconstruction=True))
         return self.model
 
+    # TODO: This doesnt work yet
     # (batch size, stack size, nb row, nb col)
     def add_conv_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
@@ -155,7 +156,7 @@ class TimeDistributedAutoEncoder:
 
         self.model.add(AutoEncoder(encoder=encoders
                                    , decoder=decoders
-                                   , tie_weights=True
+                                   , tie_weights=False
                                    , output_reconstruction=True))
         return self.model
 
@@ -166,7 +167,7 @@ class TimeDistributedAutoEncoder:
         return mse_predictions
 
     def predict_mse(self, test):
-        from data_manipulator import elementwise_square
+        from data_manipulator import elementwise_square, normalize
         predictions = self.predict(test)
         mse_predictions = elementwise_square(test - predictions)
         return mse_predictions
@@ -175,7 +176,7 @@ class TimeDistributedAutoEncoder:
         # Need to create a 3d vector [samples, timesteps, input_dim]
         if self.conf['--model_type'].strip().lower() == 'lstm':
             test = test[:, newaxis, :]
-        predictions = self.model.predict(test, int(self.conf['--batch_size']), verbose=0)
+        predictions = self.model.predict(test, 1, verbose=0)
         if len(predictions.shape) > 2:  # Resize the LSTM outputs
             predictions = predictions.reshape(predictions.shape[0], predictions.shape[2])
         return predictions

@@ -47,6 +47,9 @@ def split_vector(vec, split_size):
     return np.reshape(vec[0:split_size*np.floor(len(vec)/float(split_size))]
                       , (-1, split_size))
 
+def roll_rows(mat, forward_count):
+    return np.roll(mat, forward_count, axis=0)
+
 # http://code.activestate.com/recipes/577514-chek-if-a-number-is-a-power-of-two/
 def is_power2(num):
     # 'states if a number is a power of two'

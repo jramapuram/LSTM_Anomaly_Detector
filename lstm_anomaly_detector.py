@@ -36,7 +36,7 @@ Options:
 __author__ = 'jramapuram'
 
 import numpy as np
-from data_manipulator import is_power2, Plot
+from data_manipulator import is_power2, Plot, roll_rows
 from docopt import docopt
 from autoencoder import TimeDistributedAutoEncoder
 from csv_reader import CSVReader
@@ -85,23 +85,24 @@ if __name__ == "__main__":
         # Single autoencoder:
         ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
                            [int(conf['--hidden_dim']), int(conf['--input_dim'])])
-    ae.train_autoencoder(x_train, -1)
+    ae.train_autoencoder(x_train, 0)
 
-    # run data through autoencoder (so that it can be pulled into classifier)
-    ae_predictions = ae.predict_mse(x_train)
-    print 'ae_predictions.shape: ', ae_predictions.shape
-
+    # Predict on the data
     ae_mean_predictions = ae.predict_mse_mean(x_train)
     p.plot_wave(ae_mean_predictions, 'training autoencoder mse')
-    print 'ae_pred shape : %s | ae_mean_predictions shape: %s' % (ae_predictions.shape, ae_mean_predictions.shape)
-    np.savetxt("training_mse.csv", ae_mean_predictions, delimiter=",")
+    print 'ae_mean_predictions shape: %s' % ae_mean_predictions.shape
+    # np.savetxt("training_mse.csv", ae_mean_predictions, delimiter=",")
 
     # predict on just the test data
-    ae_test_mean_predictions = ae.predict_mse_mean(np.roll(x_test, -1))
+    ae_test_mean_predictions = ae.predict_mse_mean(x_test)
     p.plot_wave(ae_test_mean_predictions, 'test autoencoder mse')
     print 'ae_test_mean_predictions shape: %s' % ae_test_mean_predictions.shape
 
     if conf['--test_col'] is not None:
+        # run data through autoencoder (so that it can be pulled into classifier)
+        ae_predictions = ae.predict_mse(x_train)
+        print 'ae_predictions.shape: ', ae_predictions.shape
+
         # format the output vectors
         y_train_vector = np.array([1 if y_train[np.where(item >= 1)].size else 0 for item in y_train])
         y_test_vector = np.array([1 if y_test[np.where(item >= 1)].size else 0 for item in y_test])
