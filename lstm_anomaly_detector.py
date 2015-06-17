@@ -2,8 +2,8 @@
 
 Usage:
     lstm_anomaly_detector.py (-h | --help | --version)
-    lstm_anomaly_detector.py synthetic [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--num_periods=<periods>] [--max_features=<features>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs=<iter>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
-    lstm_anomaly_detector.py csv (--input=<FILE>) (--input_col=<column>) [--test_col=<column>] [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--max_features=<features>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs=<iter>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
+    lstm_anomaly_detector.py synthetic [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--num_periods=<periods>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
+    lstm_anomaly_detector.py csv (--input=<FILE>) (--input_col=<column>) [--test_col=<column>] [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
 
 Options:
     -h --help                           show this
@@ -15,7 +15,6 @@ Options:
     --test_col=<column>                 the column which contains the binary vector for the anomaly
     --model_type=<type>                 either "lstm" or "classical" [default: lstm]
     --num_periods=<periods>             number of periods of the signal to generate [default: 32]
-    --max_features=<features>           number of max features used for LSTM embeddings [default: 20000]
     --activation=<activationFn>         activation function [default: sigmoid]
     --inner_activation=<activationFn>   inner activation used for lstm [default: hard_sigmoid]
     --input_dim=<num>                   number of values into the input layer [default: 64]
@@ -25,7 +24,6 @@ Options:
     --inner_init=<type>                 inner activation for LSTM [default: orthogonal]
     --optimizer=<type>                  optimizer type [default: adam]
     --loss=<lossFn>                     the lo ss function [default: mean_squared_error]
-    --max_epochs=<iter>                 the max number of epochs to iterate for the autoencoder [default: 1000]
     --max_epochs_classifier=<iter>      the max number of epochs to iterate for the classifier [default: 1000]
     --truncated_gradient=<bool>         1 or -1 for truncation of gradient [default: -1]
     --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.1]
@@ -36,7 +34,7 @@ Options:
 __author__ = 'jramapuram'
 
 import numpy as np
-from data_manipulator import is_power2, Plot, roll_rows
+from data_manipulator import is_power2, Plot, roll_rows, elementwise_square
 from docopt import docopt
 from autoencoder import TimeDistributedAutoEncoder
 from csv_reader import CSVReader
@@ -46,10 +44,6 @@ if __name__ == "__main__":
     conf = docopt(__doc__, version='LSTM Anomaly Detector 0.1')
     ae = TimeDistributedAutoEncoder(conf)
     p = Plot(conf, ae)
-
-    # GPU needs power of 2
-    # assert is_power2(int(conf['--input_dim']))
-    # assert is_power2(int(conf['--hidden_dim']))
 
     # determine whether to pull in fake data or a csv file
     if conf['synthetic']:
@@ -70,33 +64,33 @@ if __name__ == "__main__":
     # Add the required layers
     model_type = conf['--model_type'].strip().lower()
     if model_type == 'lstm':
-        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
-                                , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        # Deep autoencoder
+        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
+                                , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
+                                , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
+                                , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        # Single autoencoder
+        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
+        #                         , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+
     elif model_type == 'conv':
         ae.add_conv_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
                                 , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
     else:
         # Deep autoencoder:
-        # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
-        #                    , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
-        #                    , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
-        #                    , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
+                           , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
+                           , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
+                           , int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
         # Single autoencoder:
-        ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
-                           [int(conf['--hidden_dim']), int(conf['--input_dim'])])
-    ae.train_autoencoder(x_train, 0)
+        # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
+        #                    [int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
-    # Predict on the data
-    ae_mean_predictions = ae.predict_mse_mean(x_train)
-    p.plot_wave(ae_mean_predictions, 'training autoencoder mse')
-    print 'ae_mean_predictions shape: %s' % ae_mean_predictions.shape
-    # np.savetxt("training_mse.csv", ae_mean_predictions, delimiter=",")
-
-    # predict on just the test data
-    ae_test_mean_predictions = ae.predict_mse_mean(x_test)
-    p.plot_wave(ae_test_mean_predictions, 'test autoencoder mse')
-    print 'ae_test_mean_predictions shape: %s' % ae_test_mean_predictions.shape
+    pred = ae.train_and_predict(x_train)
+    print 'train original shape: %s, train predictions shape: %s' % x_train.shape, pred.shape
+    p.plot_wave(pred, 'train predictions')
+    p.plot_wave(ae.sigmoid((elementwise_square(x_train - pred)) / x_train.shape[0]), 'train mse')
 
     if conf['--test_col'] is not None:
         # run data through autoencoder (so that it can be pulled into classifier)

@@ -55,6 +55,17 @@ def is_power2(num):
     # 'states if a number is a power of two'
     return num != 0 and ((num & (num - 1)) == 0)
 
+def scale_range(x, new_min, new_max):
+    old_min = np.min(x)
+    old_max = np.max(x)
+    old_range = old_max - old_min
+
+    retval = new_min
+    if old_range != 0:
+        new_range = new_max - new_min
+        retval = (((x - old_max) * new_range) / old_range) + new_min
+    return retval
+
 def elementwise_square(list):
     return np.square(list)
 
