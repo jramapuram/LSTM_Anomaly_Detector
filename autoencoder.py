@@ -8,8 +8,7 @@ from data_manipulator import elementwise_square
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, AutoEncoder, Activation
 from keras.layers.recurrent import LSTM, GRU
-from keras.utils.dot_utils import Grapher
-from keras.regularizers import l2, zero
+from keras.regularizers import l2
 from convolutional import Convolution1D, MaxPooling1D
 
 
@@ -28,11 +27,10 @@ class TimeDistributedAutoEncoder:
         if not self.compiled:
             raise Exception("Cannot determine model name without it first being compiled");
 
-        model_structure = 'weights_[%s]Enc_[%s]Dec_%dbatch_%depochs_%s_autoencoder.dat'
+        model_structure = 'weights_[%s]Enc_[%s]Dec_%dbatch_%s_autoencoder.dat'
         model_name = model_structure % ('_'.join(str(e) for e in self.encoder_sizes)
                                         , '_'.join(str(d) for d in self.decoder_sizes)
                                         , int(self.conf['--batch_size'])
-                                        , int(self.conf['--max_epochs'])
                                         , self.conf['--model_type'])
         model_dir = model_name.replace("weights_", "").replace(".dat", "")
         from data_manipulator import create_dir
@@ -63,7 +61,7 @@ class TimeDistributedAutoEncoder:
             encoders.add(Dense(encoder_sizes[i], encoder_sizes[i + 1]
                                , init=self.conf['--initialization']
                                , activation=self.conf['--activation']
-                               , W_regularizer=zero))
+                               , W_regularizer=l2()))
 
             decoders.add(Dense(decoder_sizes[i], decoder_sizes[i + 1]
                                , init=self.conf['--initialization']
@@ -110,7 +108,6 @@ class TimeDistributedAutoEncoder:
 
         self.models[0].add(AutoEncoder(encoder=encoders
                                        , decoder=decoders
-                                       , tie_weights=True
                                        , output_reconstruction=(i == 0)))
         return self.models
 
@@ -143,7 +140,6 @@ class TimeDistributedAutoEncoder:
 
         self.models[0].add(AutoEncoder(encoder=encoders
                                        , decoder=decoders
-                                       , tie_weights=False
                                        , output_reconstruction=(i == 0)))
         return self.models
 
@@ -182,18 +178,17 @@ class TimeDistributedAutoEncoder:
         for i in xrange(x.shape[0] - 1):
             if self.conf['--model_type'].strip().lower() == 'lstm':
                 predictions.append(self.models[0].predict(x[i:i+1, :, :], verbose=False))
-                self.models[0].train(x[i:i+1, :, :], x[i:i+1, :, :], accuracy=True)
+                self.models[0].train_on_batch(x[i:i+1, :, :], x[i:i+1, :, :], accuracy=True)
             else:
                 predictions.append(self.models[0].predict(x[i:i+1, :], verbose=False))
-                self.models[0].train(x[i:i+1, :], x[i:i+1, :], accuracy=True)
+                self.models[0].train_on_batch(x[i:i+1, :], x[i:i+1, :], accuracy=True)
 
         predictions.append(predictions[-1])  # XXX
         print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
         self.models[0].save_weights(os.path.join(self.model_dir, self.model_name), overwrite=True)
 
-        Grapher().plot(self.models[0], os.path.join(self.model_dir, 'model.png'))
-        predictions = np.array(predictions)
-        predictions = predictions.reshape(predictions.shape[0], 1)
+        predictions = np.squeeze(np.squeeze(np.array(predictions), (1,)), (1,))
+        print 'predictions.shape: ', predictions.shape
         np.savetxt(os.path.join(self.model_dir, 'outputs.csv'), predictions, delimiter=',')
         return predictions
 
