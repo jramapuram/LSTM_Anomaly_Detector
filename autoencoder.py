@@ -1,13 +1,16 @@
 __author__ = 'jramapuram'
 
 import os.path
-
+import scipy
 import numpy as np
 
+from RTRL import RTRL, LSTM, SGD
 from data_manipulator import elementwise_square
-from keras.models import Sequential
+# from keras.models import Sequential
+# from keras.optimizers import Adam
 from keras.layers.core import Dense, Dropout, AutoEncoder, Activation
-from keras.layers.recurrent import LSTM, GRU
+# from keras.layers.normalization import BatchNormalization
+# from keras.layers.recurrent import LSTM, GRU
 from keras.regularizers import l2
 from convolutional import Convolution1D, MaxPooling1D
 
@@ -43,7 +46,8 @@ class TimeDistributedAutoEncoder:
             if optimizer is not None:
                 model.compile(loss=self.conf['--loss'], optimizer=optimizer)
             else:
-                model.compile(loss=self.conf['--loss'], optimizer=self.conf['--optimizer'])
+                #model.compile(loss=self.conf['--loss'], optimizer=self.conf['--optimizer'])
+                model.compile(loss=self.conf['--loss'], optimizer=SGD(rtrl=True))
         self.compiled = True
 
     def add_autoencoder(self, encoder_sizes=[], decoder_sizes=[]):
@@ -52,11 +56,11 @@ class TimeDistributedAutoEncoder:
 
         self.encoder_sizes = encoder_sizes
         self.decoder_sizes = decoder_sizes
-        # self.models = [Sequential() for i in range(len(encoder_sizes))]
-        self.models = [Sequential()]
+        # self.models = [RTRL() for i in range(len(encoder_sizes))]
+        self.models = [RTRL()]
 
-        encoders = Sequential()
-        decoders = Sequential()
+        encoders = RTRL()
+        decoders = RTRL()
         for i in range(0, len(encoder_sizes) - 1):
             encoders.add(Dense(encoder_sizes[i], encoder_sizes[i + 1]
                                , init=self.conf['--initialization']
@@ -70,8 +74,7 @@ class TimeDistributedAutoEncoder:
 
         self.models[0].add(AutoEncoder(encoder=encoders
                                        , decoder=decoders
-                                       , tie_weights=True
-                                       , output_reconstruction=(i == 0)))
+                                       , output_reconstruction=True))
         return self.models
 
     # TODO: This doesnt work yet
@@ -82,11 +85,11 @@ class TimeDistributedAutoEncoder:
 
         self.encoder_sizes = encoder_sizes
         self.decoder_sizes = decoder_sizes
-        # self.models = [Sequential() for i in range(len(encoder_sizes))]
-        self.models = [Sequential()]
+        # self.models = [RTRL() for i in range(len(encoder_sizes))]
+        self.models = [RTRL()]
 
-        encoders = Sequential()
-        decoders = Sequential()
+        encoders = RTRL()
+        decoders = RTRL()
         for i in range(0, len(encoder_sizes) - 1):
             encoders.add(Convolution1D(32, 3, 3
                                        , activation=self.conf['--activation']
@@ -117,11 +120,12 @@ class TimeDistributedAutoEncoder:
 
         self.encoder_sizes = encoder_sizes
         self.decoder_sizes = decoder_sizes
-        # self.models = [Sequential() for i in range(len(encoder_sizes))]
-        self.models = [Sequential()]
+        # self.models = [RTRL() for i in range(len(encoder_sizes))]
+        self.models = [RTRL()]
 
-        encoders = Sequential()
-        decoders = Sequential()
+        encoders = RTRL()
+        decoders = RTRL()
+
         for i in range(0, len(encoder_sizes) - 1):
             encoders.add(LSTM(encoder_sizes[i], encoder_sizes[i + 1]
                               , activation=self.conf['--activation']
@@ -130,17 +134,22 @@ class TimeDistributedAutoEncoder:
                               , inner_init=self.conf['--inner_init']
                               , truncate_gradient=int(self.conf['--truncated_gradient'])
                               , return_sequences=True))
+            #encoders.add(BatchNormalization(encoder_sizes[i + 1]))
+            encoders.add(Dropout(0.5))
             decoders.add(LSTM(decoder_sizes[i], decoder_sizes[i + 1]
                               , activation=self.conf['--activation']
                               , inner_activation=self.conf['--inner_activation']
                               , init=self.conf['--initialization']
                               , inner_init=self.conf['--inner_init']
                               , truncate_gradient=int(int(self.conf['--truncated_gradient']))
-                              , return_sequences=not (i == len(encoder_sizes) - 1)))
+                              , return_sequences=True))#not (i == len(encoder_sizes) - 1)))
+    
+        # self.models[0].add(AutoEncoder(encoder=encoders
+        #                                , decoder=decoders
+        #                                , output_reconstruction=True))
+        self.models[0].add(encoders)
+        self.models[0].add(decoders)
 
-        self.models[0].add(AutoEncoder(encoder=encoders
-                                       , decoder=decoders
-                                       , output_reconstruction=(i == 0)))
         return self.models
 
     def format_lstm_data(self, x):
@@ -167,7 +176,8 @@ class TimeDistributedAutoEncoder:
         return 1 / (1 + np.exp(-x))
 
     def train_and_predict(self, x):
-        self.compile()
+        if not self.compiled:
+            self.compile()
 
         self.model_dir, self.model_name = self.get_model_name
         _ = self.load_model(os.path.join(self.model_dir, self.model_name), self.models[0])
@@ -177,17 +187,30 @@ class TimeDistributedAutoEncoder:
         predictions = []
         for i in xrange(x.shape[0] - 1):
             if self.conf['--model_type'].strip().lower() == 'lstm':
-                predictions.append(self.models[0].predict(x[i:i+1, :, :], verbose=False))
-                self.models[0].train_on_batch(x[i:i+1, :, :], x[i:i+1, :, :], accuracy=True)
+                predictions.append(self.models[0].predict(x[i:i+1, :, :], batch_size=1, verbose=False))
+                #current = self.models[0].predict(x[i:i+1, :, :], verbose=False)
+                #future = self.models[0].predict(x[i+1:i+2, :, :], verbose=False)
+                #ks_d, ks_p_value = scipy.stats.ks_2samp(current.flatten(), future.flatten())
+                #predictions.append((ks_d, ks_p_value))
+                # if ks_p_value < 0.05 and ks_d > 0.5:
+                #     predictions.append(np.ones(1))
+                # else:
+                #     predictions.append(np.zeros(1))
+                self.models[0].train_on_batch(x[i:i+1, :, :], x[i:i+1, :, :], accuracy=False)
             else:
                 predictions.append(self.models[0].predict(x[i:i+1, :], verbose=False))
                 self.models[0].train_on_batch(x[i:i+1, :], x[i:i+1, :], accuracy=True)
 
         predictions.append(predictions[-1])  # XXX
+        predictions = np.array(predictions)
         print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
         self.models[0].save_weights(os.path.join(self.model_dir, self.model_name), overwrite=True)
 
-        predictions = np.squeeze(np.squeeze(np.array(predictions), (1,)), (1,))
+        if len(predictions.shape) == 4:
+            predictions = np.squeeze(np.squeeze(predictions, (1,)), (1,))
+        elif len(predictions.shape) == 3:
+            predictions = np.squeeze(predictions, (1,))
+        
         print 'predictions.shape: ', predictions.shape
         np.savetxt(os.path.join(self.model_dir, 'outputs.csv'), predictions, delimiter=',')
         return predictions

@@ -114,7 +114,8 @@ class CSVReader(DataSource):
             self.x_test = x_test.flatten()
 
             self.p.plot_wave(self.x_train, 'original train data')
-            self.p.plot_wave(self.x_test, 'original test data')
+            if self.test_ratio > 0.0:
+                self.p.plot_wave(self.x_test, 'original test data')
 
             return (self.window_data(self.x_train), self.y_train)\
                 , (self.window_data(self.x_test), self.y_test)

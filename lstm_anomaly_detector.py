@@ -26,15 +26,15 @@ Options:
     --loss=<lossFn>                     the lo ss function [default: mean_squared_error]
     --max_epochs_classifier=<iter>      the max number of epochs to iterate for the classifier [default: 1000]
     --truncated_gradient=<bool>         1 or -1 for truncation of gradient [default: -1]
-    --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.1]
-    --validation_ratio=<ratio>          number between 0 and 1 for which the data is split for validation [default: 0.3]
+    --test_ratio=<ratio>                ratio for test split in case of true classes [default: 0.0]
+    --validation_ratio=<ratio>          ratio for validation split in case of true classes [default: 0.0]
 
 """
 
 __author__ = 'jramapuram'
 
 import numpy as np
-from data_manipulator import is_power2, Plot, roll_rows, elementwise_square
+from data_manipulator import is_power2, Plot, roll_rows, elementwise_square, normalize
 from docopt import docopt
 from autoencoder import TimeDistributedAutoEncoder
 from csv_reader import CSVReader
@@ -86,11 +86,11 @@ if __name__ == "__main__":
         # Single autoencoder:
         # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
         #                    [int(conf['--hidden_dim']), int(conf['--input_dim'])])
-
+    ae.compile()
     pred = ae.train_and_predict(x_train)
     print 'train original shape: %s, train predictions shape: %s' % x_train.shape, pred.shape
     p.plot_wave(pred, 'train predictions')
-    p.plot_wave(ae.sigmoid((elementwise_square(x_train - pred)) / x_train.shape[0]), 'train mse')
+    p.plot_wave(elementwise_square(normalize(x_train)  - normalize(pred)), 'train mse')
 
     if conf['--test_col'] is not None:
         # run data through autoencoder (so that it can be pulled into classifier)
