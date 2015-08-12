@@ -16,6 +16,7 @@ from data_manipulator import elementwise_square
 
 class TimeDistributedAutoEncoder:
     def __init__(self, conf):
+        cuda.init(0)
         self.conf = conf
         self.model_dir = ''
         self.model_name = ''
@@ -41,6 +42,8 @@ class TimeDistributedAutoEncoder:
 
     def make_initial_state(self, batch_size, train=True):
         state = {}
+        print 'enc sizes: ', self.encoder_sizes
+        print 'dec sizes: ', self.decoder_sizes
         for i in range(0, len(self.encoder_sizes)):
             state['c_e' + str(i)] = chainer.Variable(cuda.zeros((batch_size, self.encoder_sizes[i]),
                                                                 dtype=np.float32),
@@ -48,7 +51,7 @@ class TimeDistributedAutoEncoder:
             state['h_e' + str(i)] = chainer.Variable(cuda.zeros((batch_size, self.encoder_sizes[i]),
                                                                 dtype=np.float32),
                                                      volatile=not train)
-        for j in range(0, len(self.decoder_sizes)):
+        for i in range(0, len(self.decoder_sizes)):
             state['c_d' + str(i)] = chainer.Variable(cuda.zeros((batch_size, self.decoder_sizes[i]),
                                                                 dtype=np.float32),
                                                      volatile=not train)
@@ -64,25 +67,30 @@ class TimeDistributedAutoEncoder:
         t = chainer.Variable(y_data, volatile=not train)
 
         # Encoder section : Special case for 0 as it uses raw data x
-        state['h_e_in0'] = self.encoders['le_x0'](F.dropout(x, train=train)) + self.encoders['le_h0'](state['h_e0'])
-        print state['h_e_in0'].__len__()
+        state['h_e_in0'] = self.encoders['le_x0'](F.dropout(x, ratio=0.0, train=train)) + self.encoders['le_h0'](state['h_e0'])
         for i in range(0, len(self.encoder_sizes) - 1):
             num = str(i)
             num_plus_one = str(i + 1)
             state['c_e' + num], state['h_e' + num] = F.lstm(state['c_e' + num], state['h_e_in' + num])
-            state['h_e_in' + num_plus_one] = self.encoders['le_x' + num_plus_one](F.dropout('h_e' + num, train=train)) \
-                                             + self.encoders['e_h' + num_plus_one](state['h_e' + num_plus_one])
+            state['h_e_in' + num_plus_one] = self.encoders['le_x' + num_plus_one](F.dropout(state['h_e' + num], train=train)) \
+                                             + self.encoders['le_h' + num_plus_one](state['h_e' + num_plus_one])
 
         # Decoder section: Special case for 0 as it uses last encoder state
         state['c_d0'], state['h_d0'] = F.lstm(state['c_d0'], state['h_e_in' + str(i + 1)])
-        for i in range(0, len(self.decoder_sizes) - 2):
+        state['h_d_in0'] = self.decoders['ld_x0'](F.dropout(state['h_d0'], train=train)) \
+                                + self.decoders['ld_h0'](state['h_d0'])
+        i = len(self.decoder_sizes) - 1
+        for i in range(1, len(self.decoder_sizes) - 1):
             num = str(i)
-            state['h_d_in' + num] = self.decoders['ld_x' + num](F.dropout('h_d' + num, train=train)) \
+            num_minus_one = str(i - 1)
+            state['h_d_in' + num] = self.decoders['ld_x' + num](F.dropout(state['h_d' + num_minus_one], train=train)) \
                                     + self.decoders['ld_h' + num](state['h_d' + num])
             state['c_d' + num], state['h_d' + num] = F.lstm(state['c_d' + num], state['h_d_in' + num])
 
-        y = self.decoders['ld_h' + str(i + i)](F.dropout(state['h_d' + str(i)], train=train))
+        y = self.decoders['ld_h' + str(i)](F.dropout(state['h_d' + str(i)], train=train))
 
+        print 'y=', y.__len__()
+        print 't=', t.__len__()
         return state, F.mean_squared_error(y, t)
 
     def add_autoencoder(self, encoder_sizes, decoder_sizes):
@@ -99,7 +107,6 @@ class TimeDistributedAutoEncoder:
         self.model = FunctionSet(layers.update(self.decoders))
         for param in self.model.parameters:
             param[:] = np.random.uniform(-0.1, 0.1, param.shape)
-        cuda.init()
         self.model.to_gpu()
 
         return self.model
@@ -111,11 +118,24 @@ class TimeDistributedAutoEncoder:
         self.encoder_sizes = encoder_sizes
         self.decoder_sizes = decoder_sizes
 
-        for i in range(0, len(encoder_sizes)):
-            self.encoders['le_x' + str(i)] = F.Linear(encoder_sizes[i], 4 * encoder_sizes[i])
+        # Initialize the first layers outsize
+        self.encoders['le_x0'] = F.Linear(encoder_sizes[0], 4 * encoder_sizes[0])
+        self.encoders['le_h0'] = F.Linear(encoder_sizes[0], 4 * encoder_sizes[0])
+        self.decoders['ld_x0'] = F.Linear(decoder_sizes[0], 4 * decoder_sizes[0])
+        self.decoders['ld_h0'] = F.Linear(decoder_sizes[0], 4 * decoder_sizes[0])
+        
+        for i in range(1, len(encoder_sizes)):
+            print 'creating encoder layer: ', [encoder_sizes[i - 1], 4 * encoder_sizes[i]]
+            self.encoders['le_x' + str(i)] = F.Linear(encoder_sizes[i - 1], 4 * encoder_sizes[i])
             self.encoders['le_h' + str(i)] = F.Linear(encoder_sizes[i], 4 * encoder_sizes[i])
-            self.decoders['ld_x' + str(i)] = F.Linear(decoder_sizes[i], 4 * decoder_sizes[i])
-            self.decoders['ld_h' + str(i)] = F.Linear(decoder_sizes[i], 4 * decoder_sizes[i])
+
+        for i in range(1, len(decoder_sizes)):
+            self.decoders['ld_x' + str(i)] = F.Linear(decoder_sizes[i - 1], 4 * decoder_sizes[i])
+            if i == len(decoder_sizes) - 1:
+                self.decoders['ld_h' + str(i)] = F.Linear(decoder_sizes[i], decoder_sizes[i])
+            else:
+                self.decoders['ld_h' + str(i)] = F.Linear(decoder_sizes[i], 4 * decoder_sizes[i])
+
         layers = self.encoders.copy()
         layers.update(self.decoders)
 
