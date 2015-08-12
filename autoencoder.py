@@ -42,8 +42,6 @@ class TimeDistributedAutoEncoder:
 
     def make_initial_state(self, batch_size, train=True):
         state = {}
-        print 'enc sizes: ', self.encoder_sizes
-        print 'dec sizes: ', self.decoder_sizes
         for i in range(0, len(self.encoder_sizes)):
             state['c_e' + str(i)] = chainer.Variable(cuda.zeros((batch_size, self.encoder_sizes[i]),
                                                                 dtype=np.float32),
@@ -88,9 +86,6 @@ class TimeDistributedAutoEncoder:
             state['c_d' + num], state['h_d' + num] = F.lstm(state['c_d' + num], state['h_d_in' + num])
 
         y = self.decoders['ld_h' + str(i)](F.dropout(state['h_d' + str(i)], train=train))
-
-        print 'y=', y.__len__()
-        print 't=', t.__len__()
         return state, F.mean_squared_error(y, t)
 
     def add_autoencoder(self, encoder_sizes, decoder_sizes):
@@ -125,7 +120,6 @@ class TimeDistributedAutoEncoder:
         self.decoders['ld_h0'] = F.Linear(decoder_sizes[0], 4 * decoder_sizes[0])
         
         for i in range(1, len(encoder_sizes)):
-            print 'creating encoder layer: ', [encoder_sizes[i - 1], 4 * encoder_sizes[i]]
             self.encoders['le_x' + str(i)] = F.Linear(encoder_sizes[i - 1], 4 * encoder_sizes[i])
             self.encoders['le_h' + str(i)] = F.Linear(encoder_sizes[i], 4 * encoder_sizes[i])
 
@@ -170,28 +164,27 @@ class TimeDistributedAutoEncoder:
     def sigmoid(x):
         return 1 / (1 + np.exp(-x))
 
-    def evaluate_lstm(self, dataset):
+    def evaluate_lstm(self, x, y):
         sum_log_perp = cuda.zeros(())
         state = self.make_initial_state(batch_size=1, train=False)
-        for i in six.moves.range(dataset.size - 1):
-            x_batch = dataset[i:i + 1]
-            y_batch = dataset[i + 1:i + 2]
-            state, loss = self.forward_one_step_lstm(x_batch, y_batch, state, train=False)
+        assert len(x) == len(y)
+        
+        for i in six.moves.range(x.size - 1):
+            state, loss = self.forward_one_step_lstm(x, y, state, train=False)
             sum_log_perp += loss.data.reshape(())
 
-        return math.exp(cuda.to_cpu(sum_log_perp) / (dataset.size - 1))
+        return math.exp(cuda.to_cpu(sum_log_perp) / (x.size - 1))
 
     def train_and_predict(self, x):
         self.model_dir, self.model_name = self.get_model_name
         #_ = self.load_model(os.path.join(self.model_dir, self.model_name), self.models[0])
-        # x = self.format_lstm_data(x)
         x = x.astype(np.float32)
+        
         predictions = []
-        self.state, loss = self.forward_one_step_lstm(x[0:1, :], x[0:1, :], self.state, train=True)
+        #self.state, loss = self.forward_one_step_lstm(x[0:1, :], x[0:1, :], self.state, train=True)
         for i in xrange(x.shape[0] - 1):
             if self.conf['--model_type'].strip().lower() == 'lstm':
-                current_data = np.array([x[i:i+1, :], x[i:i+1, :]])
-                predictions.append(self.evaluate_lstm(current_data))
+                predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i:i+1, :]))
                 self.state, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
             else:
                 predictions.append(self.models[0].predict(x[i:i+1, :], verbose=False))

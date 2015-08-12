@@ -65,13 +65,13 @@ if __name__ == "__main__":
     model_type = conf['--model_type'].strip().lower()
     if model_type == 'lstm':
         # Deep autoencoder
-        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
-                                , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
-                                , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
-                                , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
+        #                         , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
+        #                         , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
+        #                         , int(conf['--hidden_dim']), int(conf['--input_dim'])])
         # Single autoencoder
-        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
-        #                         , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
+                                , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
     elif model_type == 'conv':
         ae.add_conv_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
