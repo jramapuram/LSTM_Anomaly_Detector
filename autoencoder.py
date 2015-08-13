@@ -77,7 +77,7 @@ class TimeDistributedAutoEncoder:
         state['c_d0'], state['h_d0'] = F.lstm(state['c_d0'], state['h_e_in' + str(i + 1)])
         state['h_d_in0'] = self.decoders['ld_x0'](F.dropout(state['h_d0'], train=train)) \
                                 + self.decoders['ld_h0'](state['h_d0'])
-        i = len(self.decoder_sizes) - 1
+        i = len(self.decoder_sizes) - 2
         for i in range(1, len(self.decoder_sizes) - 1):
             num = str(i)
             num_minus_one = str(i - 1)
@@ -85,7 +85,7 @@ class TimeDistributedAutoEncoder:
                                     + self.decoders['ld_h' + num](state['h_d' + num])
             state['c_d' + num], state['h_d' + num] = F.lstm(state['c_d' + num], state['h_d_in' + num])
 
-        y = self.decoders['ld_h' + str(i)](F.dropout(state['h_d' + str(i)], train=train))
+        y = self.decoders['ld_h' + str(i + 1)](F.dropout(state['h_d' + str(i + 1)], train=train))
         return state, F.mean_squared_error(y, t)
 
     def add_autoencoder(self, encoder_sizes, decoder_sizes):
@@ -141,6 +141,12 @@ class TimeDistributedAutoEncoder:
         self.state = self.make_initial_state(int(self.conf['--batch_size']), train=True)
         return self.model
 
+    def init_optimizer(self):
+        self.optimizer.setup(self.model.collect_parameters())
+        self.optimizer.zero_grads()
+        return self.optimizer
+
+        
     def format_lstm_data(self, x):
         # Need to create a 3d vector [samples, timesteps, input_dim]
         if self.conf['--model_type'].strip().lower() == 'lstm':
@@ -165,15 +171,12 @@ class TimeDistributedAutoEncoder:
         return 1 / (1 + np.exp(-x))
 
     def evaluate_lstm(self, x, y):
-        sum_log_perp = cuda.zeros(())
+        #sum_log_perp = cuda.zeros(())
         state = self.make_initial_state(batch_size=1, train=False)
         assert len(x) == len(y)
-        
-        for i in six.moves.range(x.size - 1):
-            state, loss = self.forward_one_step_lstm(x, y, state, train=False)
-            sum_log_perp += loss.data.reshape(())
 
-        return math.exp(cuda.to_cpu(sum_log_perp) / (x.size - 1))
+        state, loss = self.forward_one_step_lstm(x, y, state, train=False)
+        return np.array([cuda.to_cpu(state['h_d' + str(len(self.decoder_sizes) - 1)].data.reshape(())), cuda.to_cpu(loss.data.reshape(()))])
 
     def train_and_predict(self, x):
         self.model_dir, self.model_name = self.get_model_name
@@ -181,14 +184,18 @@ class TimeDistributedAutoEncoder:
         x = x.astype(np.float32)
         
         predictions = []
+        accum_loss = 0.0
         #self.state, loss = self.forward_one_step_lstm(x[0:1, :], x[0:1, :], self.state, train=True)
         for i in xrange(x.shape[0] - 1):
-            if self.conf['--model_type'].strip().lower() == 'lstm':
-                predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i:i+1, :]))
-                self.state, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
-            else:
-                predictions.append(self.models[0].predict(x[i:i+1, :], verbose=False))
-                self.models.train_on_batch(x[i:i+1, :], x[i:i+1, :], accuracy=True)
+            predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i:i+1, :]))
+            self.state, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
+            accum_loss += loss
+            if i % 5 == 0 or i == (x.shape[0] -1):
+                self.optimizer.zero_grads()
+                accum_loss.backward()
+                accum_loss.unchain_backward()  # truncate
+                self.optimizer.clip_grads(5)
+                self.optimizer.update()
 
         predictions.append(predictions[-1])  # XXX
         print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)

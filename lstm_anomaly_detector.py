@@ -65,13 +65,14 @@ if __name__ == "__main__":
     model_type = conf['--model_type'].strip().lower()
     if model_type == 'lstm':
         # Deep autoencoder
-        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
-        #                         , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
-        #                         , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
-        #                         , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
+                                , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
+                                , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
+                                , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+
         # Single autoencoder
-        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
-                                , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
+        #                         , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
     elif model_type == 'conv':
         ae.add_conv_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
@@ -87,10 +88,11 @@ if __name__ == "__main__":
         # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
         #                    [int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
+    ae.init_optimizer()
     pred = ae.train_and_predict(x_train)
     print 'train original shape: %s, train predictions shape: %s' % x_train.shape, pred.shape
-    p.plot_wave(pred, 'train predictions')
-    p.plot_wave(ae.sigmoid((elementwise_square(x_train - pred)) / x_train.shape[0]), 'train mse')
+    p.plot_wave(pred[:, 1], 'train predictions')
+    p.plot_wave(pred[:, 0], 'train mse')
 
     if conf['--test_col'] is not None:
         # run data through autoencoder (so that it can be pulled into classifier)
