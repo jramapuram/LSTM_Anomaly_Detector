@@ -78,6 +78,8 @@ def normalize(mat):
     return Normalizer(norm='l2').fit_transform(mat)
 
 def split(mat, test_ratio):
+    if test_ratio == 0.0:
+        return mat, None
     train_ratio = 1.0 - test_ratio
     train_index = np.floor(len(mat) * train_ratio)
     if mat.ndim == 2:

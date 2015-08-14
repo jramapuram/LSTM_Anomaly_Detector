@@ -86,7 +86,7 @@ class TimeDistributedAutoEncoder:
             state['c_d' + num], state['h_d' + num] = F.lstm(state['c_d' + num], state['h_d_in' + num])
 
         y = self.decoders['ld_h' + str(i + 1)](F.dropout(state['h_d' + str(i + 1)], train=train))
-        return state, F.mean_squared_error(y, t)
+        return state, y, F.mean_squared_error(y, t)
 
     def add_autoencoder(self, encoder_sizes, decoder_sizes):
         assert(len(encoder_sizes) != 0 and len(decoder_sizes) != 0)
@@ -146,37 +146,11 @@ class TimeDistributedAutoEncoder:
         self.optimizer.zero_grads()
         return self.optimizer
 
-        
-    def format_lstm_data(self, x):
-        # Need to create a 3d vector [samples, timesteps, input_dim]
-        if self.conf['--model_type'].strip().lower() == 'lstm':
-            x = x[:, np.newaxis, :]
-            print 'modified training data to fit LSTM: ', x.shape
-        return x
-
-    def unformat_lstm_data(self, x):
-        # Need to create a 2d vector [samples, input_dim]
-        if self.conf['--model_type'].strip().lower() == 'lstm':
-            x = x[:, np.newaxis, :]
-        return x
-
-    @staticmethod
-    def softmax(x):
-        e_x = np.exp(x - np.max(x))
-        out = e_x / e_x.sum()
-        return out
-
-    @staticmethod
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
-
     def evaluate_lstm(self, x, y):
-        #sum_log_perp = cuda.zeros(())
-        state = self.make_initial_state(batch_size=1, train=False)
         assert len(x) == len(y)
-
-        state, loss = self.forward_one_step_lstm(x, y, state, train=False)
-        return np.array([cuda.to_cpu(state['h_d' + str(len(self.decoder_sizes) - 1)].data.reshape(())), cuda.to_cpu(loss.data.reshape(()))])
+        state = self.make_initial_state(batch_size=1, train=False)
+        state, current_prediction, loss = self.forward_one_step_lstm(x, y, state, train=False)
+        return np.array([cuda.to_cpu(current_prediction.data.reshape(())), cuda.to_cpu(loss.data.reshape(()))])
 
     def train_and_predict(self, x):
         self.model_dir, self.model_name = self.get_model_name
@@ -184,16 +158,17 @@ class TimeDistributedAutoEncoder:
         x = x.astype(np.float32)
         
         predictions = []
-        accum_loss = 0.0
-        #self.state, loss = self.forward_one_step_lstm(x[0:1, :], x[0:1, :], self.state, train=True)
+        accum_loss = chainer.Variable(cuda.zeros((), dtype=np.float32))
+
         for i in xrange(x.shape[0] - 1):
             predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i:i+1, :]))
-            self.state, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
+            self.state, y, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
             accum_loss += loss
-            if i % 5 == 0 or i == (x.shape[0] -1):
+            if i % 10 == 0 or i == (x.shape[0] -1):
                 self.optimizer.zero_grads()
                 accum_loss.backward()
                 accum_loss.unchain_backward()  # truncate
+                #accum_loss = chainer.Variable(cuda.zeros((), dtype=np.float32))
                 self.optimizer.clip_grads(5)
                 self.optimizer.update()
 
@@ -201,7 +176,6 @@ class TimeDistributedAutoEncoder:
         print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
         #self.models[0].save_weights(os.path.join(self.model_dir, self.model_name), overwrite=True)
 
-        #predictions = np.squeeze(np.squeeze(np.array(predictions), (1,)), (1,))
         predictions = np.array(predictions)
         print 'predictions.shape: ', predictions.shape
         np.savetxt(os.path.join(self.model_dir, 'outputs.csv'), predictions, delimiter=',')

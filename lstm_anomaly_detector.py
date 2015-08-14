@@ -26,7 +26,7 @@ Options:
     --loss=<lossFn>                     the lo ss function [default: mean_squared_error]
     --max_epochs_classifier=<iter>      the max number of epochs to iterate for the classifier [default: 1000]
     --truncated_gradient=<bool>         1 or -1 for truncation of gradient [default: -1]
-    --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.1]
+    --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.0]
     --validation_ratio=<ratio>          number between 0 and 1 for which the data is split for validation [default: 0.3]
 
 """
@@ -55,6 +55,7 @@ if __name__ == "__main__":
 
     # pull in the data
     (x_train, y_train), (x_test, y_test) = source.split_data()
+    # x_train = np.vstack((x_train, x_train, x_train))
     print 'X_train.shape %s | Y_train.shape: %s' % (x_train.shape, y_train.shape)
     print 'X_test.shape %s  | Y_test.shape: %s' % (x_test.shape, y_test.shape)
 
@@ -91,8 +92,8 @@ if __name__ == "__main__":
     ae.init_optimizer()
     pred = ae.train_and_predict(x_train)
     print 'train original shape: %s, train predictions shape: %s' % x_train.shape, pred.shape
-    p.plot_wave(pred[:, 1], 'train predictions')
-    p.plot_wave(pred[:, 0], 'train mse')
+    p.plot_wave(pred[:, 0], 'train predictions')
+    p.plot_wave(pred[:, 1], 'train mse')
 
     if conf['--test_col'] is not None:
         # run data through autoencoder (so that it can be pulled into classifier)
