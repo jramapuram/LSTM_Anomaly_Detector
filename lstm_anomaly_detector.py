@@ -2,13 +2,14 @@
 
 Usage:
     lstm_anomaly_detector.py (-h | --help | --version)
-    lstm_anomaly_detector.py synthetic [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--num_periods=<periods>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
-    lstm_anomaly_detector.py csv (--input=<FILE>) (--input_col=<column>) [--test_col=<column>] [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
+    lstm_anomaly_detector.py synthetic [--quiet] [--gpu=<num>] [--truncated_interval=<num>] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--num_periods=<periods>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
+    lstm_anomaly_detector.py csv (--input=<FILE>) (--input_col=<column>) [--gpu=<num>]  [--truncated_interval=<num>] [--test_col=<column>] [--quiet] [--plot_live] [--model_type=<type>] [--inner_activation=<activationFn>] [--activation=<activationFn>] [--input_dim=<num>] [--hidden_dim=<num>] [--batch_size=<num>] [--initialization=<type>] [--inner_init=<type>] [--optimizer=<type>] [--loss=<lossFn>] [--max_epochs_classifier=<iter>] [--truncated_gradient=<bool>] [--test_ratio=<ratio>] [--validation_ratio=<ratio>]
 
 Options:
     -h --help                           show this
     --version                           show version
     --quiet                             print less text [default: False]
+    --gpu=<num>                         use this gpu id [default: 0]
     --plot_live                         if false the images are stored in a directory instead of shown [default: False]
     --input=<FILE>                      csv file if in csv mode
     --input_col=<column>                the column to read our value data from [default: value]
@@ -26,6 +27,7 @@ Options:
     --loss=<lossFn>                     the lo ss function [default: mean_squared_error]
     --max_epochs_classifier=<iter>      the max number of epochs to iterate for the classifier [default: 1000]
     --truncated_gradient=<bool>         1 or -1 for truncation of gradient [default: -1]
+    --truncated_interval=<num>          Number of steps before running backprop through time [default: 1]
     --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.0]
     --validation_ratio=<ratio>          number between 0 and 1 for which the data is split for validation [default: 0.3]
 

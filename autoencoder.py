@@ -16,7 +16,7 @@ from data_manipulator import elementwise_square
 
 class TimeDistributedAutoEncoder:
     def __init__(self, conf):
-        cuda.init(0)
+        cuda.init(int(conf['--gpu']))
         self.conf = conf
         self.model_dir = ''
         self.model_name = ''
@@ -30,10 +30,12 @@ class TimeDistributedAutoEncoder:
 
     @property
     def get_model_name(self):
-        model_structure = 'weights_[%s]Enc_[%s]Dec_%dbatch_%s_autoencoder.dat'
+        model_structure = 'weights_[%s]Enc_[%s]Dec_%dbatch_%dtruncate_%dgpu_%s_autoencoder.dat'
         model_name = model_structure % ('_'.join(str(e) for e in self.encoder_sizes)
                                         , '_'.join(str(d) for d in self.decoder_sizes)
                                         , int(self.conf['--batch_size'])
+                                        , int(self.conf['--truncated_interval'])
+                                        , int(self.conf['--gpu'])
                                         , self.conf['--model_type'])
         model_dir = model_name.replace("weights_", "").replace(".dat", "")
         from data_manipulator import create_dir
@@ -164,7 +166,7 @@ class TimeDistributedAutoEncoder:
             predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i:i+1, :]))
             self.state, y, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
             accum_loss += loss
-            if i % 10 == 0 or i == (x.shape[0] -1):
+            if i % int(self.conf['--truncated_interval']) == 0 or i == (x.shape[0] -1):
                 self.optimizer.zero_grads()
                 accum_loss.backward()
                 accum_loss.unchain_backward()  # truncate
