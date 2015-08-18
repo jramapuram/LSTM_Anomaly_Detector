@@ -138,7 +138,6 @@ class TimeDistributedAutoEncoder:
         self.model = FunctionSet(**layers)
         for param in self.model.parameters:
             param[:] = np.random.uniform(-0.1, 0.1, param.shape)
-        cuda.init()
         self.model.to_gpu()
         self.state = self.make_initial_state(int(self.conf['--batch_size']), train=True)
         return self.model
