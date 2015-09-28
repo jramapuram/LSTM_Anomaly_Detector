@@ -10,13 +10,14 @@ import chainer
 import numpy as np
 import chainer.functions as F
 
+from runstats import Statistics
 from chainer import cuda, Function, FunctionSet, gradient_check, Variable, optimizers
 from data_manipulator import elementwise_square
 
 
 class TimeDistributedAutoEncoder:
     def __init__(self, conf):
-        cuda.init(int(conf['--gpu']))
+        #cuda.init(int(conf['--gpu']))
         self.conf = conf
         self.model_dir = ''
         self.model_name = ''
@@ -26,6 +27,7 @@ class TimeDistributedAutoEncoder:
         self.decoders = {}
         self.model = None
         self.state = None
+        self.running_stats = Statistics()
         self.optimizer = optimizers.Adam()  # Parametrize
 
     @property
@@ -59,6 +61,7 @@ class TimeDistributedAutoEncoder:
                                                                 dtype=np.float32),
                                                      volatile=not train)
         return state
+
 
     def forward_one_step_lstm(self, x_data, y_data, state, train=True):
         x_data = cuda.to_gpu(x_data)
@@ -120,7 +123,7 @@ class TimeDistributedAutoEncoder:
         self.encoders['le_h0'] = F.Linear(encoder_sizes[0], 4 * encoder_sizes[0])
         self.decoders['ld_x0'] = F.Linear(decoder_sizes[0], 4 * decoder_sizes[0])
         self.decoders['ld_h0'] = F.Linear(decoder_sizes[0], 4 * decoder_sizes[0])
-        
+
         for i in range(1, len(encoder_sizes)):
             self.encoders['le_x' + str(i)] = F.Linear(encoder_sizes[i - 1], 4 * encoder_sizes[i])
             self.encoders['le_h' + str(i)] = F.Linear(encoder_sizes[i], 4 * encoder_sizes[i])
@@ -147,6 +150,33 @@ class TimeDistributedAutoEncoder:
         self.optimizer.zero_grads()
         return self.optimizer
 
+    def get_state(self, state):
+        c_e = [cuda.cupy.asnumpy(cuda.to_cpu(state['c_e' + str(i)]).data.flatten())
+               for i in range(0, len(self.encoder_sizes))]
+        h_e = [cuda.cupy.asnumpy(cuda.to_cpu(state['h_e' + str(i)]).data.flatten())
+               for i in range(0, len(self.encoder_sizes))]
+        c_d = [cuda.cupy.asnumpy(cuda.to_cpu(state['c_d' + str(i)]).data.flatten())
+               for i in range(0, len(self.encoder_sizes))]
+        h_d = [cuda.cupy.asnumpy(cuda.to_cpu(state['h_d' + str(i)]).data.flatten())
+               for i in range(0, len(self.encoder_sizes))]
+        return (c_e, h_e, c_d, h_d)
+
+    def write_state(self, state):
+        (c_e, h_e, c_d, h_d) = self.get_state(state)
+        for i in range(0, len(self.encoder_sizes)):
+            ce_len = str(state['c_e' + str(i)].data.shape)
+            with open(os.path.join(self.model_dir, 'ce'+ str(i) + ce_len + '.csv'), 'a') as f_handle:
+                np.savetxt(f_handle, c_e[i], delimiter=',')
+            he_len = str(state['h_e' + str(i)].data.shape)
+            with open(os.path.join(self.model_dir, 'he'+ str(i) + he_len + '.csv'), 'a') as f_handle:
+                np.savetxt(f_handle, h_e[i], delimiter=',')
+            cd_len = str(state['c_d' + str(i)].data.shape)
+            with open(os.path.join(self.model_dir, 'cd'+ str(i) + cd_len + '.csv'), 'a') as f_handle:
+                np.savetxt(f_handle, c_d[i], delimiter=',')
+            hd_len = str(state['h_d' + str(i)].data.shape)
+            with open(os.path.join(self.model_dir, 'hd'+ str(i) + hd_len + '.csv'), 'a') as f_handle:
+                np.savetxt(f_handle, h_d[i], delimiter=',')
+
     def evaluate_lstm(self, x, y):
         assert len(x) == len(y)
         state = self.make_initial_state(batch_size=1, train=False)
@@ -157,21 +187,25 @@ class TimeDistributedAutoEncoder:
         self.model_dir, self.model_name = self.get_model_name
         #_ = self.load_model(os.path.join(self.model_dir, self.model_name), self.models[0])
         x = x.astype(np.float32)
-        
+
         predictions = []
         accum_loss = chainer.Variable(cuda.zeros((), dtype=np.float32))
 
-        for i in xrange(x.shape[0] - 1):
-            predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i:i+1, :]))
-            self.state, y, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i:i+1, :], self.state, train=True)
+        for i in xrange(x.shape[0] - 2):
+            predictions.append(self.evaluate_lstm(x[i:i+1, :], x[i+1:i+2, :]))
+            self.state, y, loss = self.forward_one_step_lstm(x[i:i+1, :], x[i+1:i+2, :], self.state, train=True)
+            self.running_stats.push(cuda.cupy.asnumpy(cuda.to_cpu(loss.data)))
+            print 'mean = ', self.running_stats.mean(), 'var = ', self.running_stats.variance()
+
             accum_loss += loss
             if i % int(self.conf['--truncated_interval']) == 0 or i == (x.shape[0] -1):
                 self.optimizer.zero_grads()
                 accum_loss.backward()
                 accum_loss.unchain_backward()  # truncate
-                #accum_loss = chainer.Variable(cuda.zeros((), dtype=np.float32))
+                # accum_loss = chainer.Variable(cuda.zeros((), dtype=np.float32))
                 self.optimizer.clip_grads(5)
                 self.optimizer.update()
+                # self.write_state(self.state)
 
         predictions.append(predictions[-1])  # XXX
         print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
