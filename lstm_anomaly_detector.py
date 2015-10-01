@@ -26,8 +26,8 @@ Options:
     --loss=<lossFn>                     the lo ss function [default: mean_squared_error]
     --max_epochs_classifier=<iter>      the max number of epochs to iterate for the classifier [default: 1000]
     --truncated_gradient=<bool>         1 or -1 for truncation of gradient [default: -1]
-    --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.1]
-    --validation_ratio=<ratio>          number between 0 and 1 for which the data is split for validation [default: 0.3]
+    --test_ratio=<ratio>                number between 0 and 1 for which the data is split for test [default: 0.0]
+    --validation_ratio=<ratio>          number between 0 and 1 for which the data is split for validation [default: 0.0]
 
 """
 
@@ -65,27 +65,27 @@ if __name__ == "__main__":
     model_type = conf['--model_type'].strip().lower()
     if model_type == 'lstm':
         # Deep autoencoder
-        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
-                                , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
-                                , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
-                                , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
+        #                         , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
+        #                         , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
+        #                         , int(conf['--hidden_dim']), int(conf['--input_dim'])])
         # Single autoencoder
-        # ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
-        #                         , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        ae.add_lstm_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
+                                , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
     elif model_type == 'conv':
         ae.add_conv_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])]
                                 , [int(conf['--hidden_dim']), int(conf['--input_dim'])])
     else:
         # Deep autoencoder:
-        ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
-                           , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
-                           , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
-                           , int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])
+        #                    , int(conf['--hidden_dim'])/2, int(conf['--hidden_dim']) / 4]
+        #                    , [int(conf['--hidden_dim'])/4, int(conf['--hidden_dim']) / 2
+        #                    , int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
         # Single autoencoder:
-        # ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
-        #                    [int(conf['--hidden_dim']), int(conf['--input_dim'])])
+        ae.add_autoencoder([int(conf['--input_dim']), int(conf['--hidden_dim'])],
+                           [int(conf['--hidden_dim']), int(conf['--input_dim'])])
 
     pred = ae.train_and_predict(x_train)
     print 'train original shape: %s, train predictions shape: %s' % x_train.shape, pred.shape

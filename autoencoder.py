@@ -4,7 +4,7 @@ import os.path
 
 import numpy as np
 
-from data_manipulator import elementwise_square
+from data_manipulator import elementwise_square, roll_rows
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, AutoEncoder, Activation
 from keras.layers.recurrent import LSTM, GRU
@@ -70,7 +70,6 @@ class TimeDistributedAutoEncoder:
 
         self.models[0].add(AutoEncoder(encoder=encoders
                                        , decoder=decoders
-                                       , tie_weights=True
                                        , output_reconstruction=(i == 0)))
         return self.models
 
@@ -175,10 +174,14 @@ class TimeDistributedAutoEncoder:
         x = self.format_lstm_data(x)
 
         predictions = []
+        # Keras LSTMs are NOT stateful and thus need to be trained in batch
+        if self.conf['--model_type'].strip().lower() == 'lstm':
+            self.models[0].train_on_batch(x, roll_rows(x, -1) , accuracy=True)
+
         for i in xrange(x.shape[0] - 1):
             if self.conf['--model_type'].strip().lower() == 'lstm':
                 predictions.append(self.models[0].predict(x[i:i+1, :, :], verbose=False))
-                self.models[0].train_on_batch(x[i:i+1, :, :], x[i:i+1, :, :], accuracy=True)
+                #self.models[0].train_on_batch(x[i:i+1, :, :], x[i:i+1, :, :], accuracy=True)
             else:
                 predictions.append(self.models[0].predict(x[i:i+1, :], verbose=False))
                 self.models[0].train_on_batch(x[i:i+1, :], x[i:i+1, :], accuracy=True)
@@ -187,7 +190,11 @@ class TimeDistributedAutoEncoder:
         print 'saving model to %s...' % os.path.join(self.model_dir, self.model_name)
         self.models[0].save_weights(os.path.join(self.model_dir, self.model_name), overwrite=True)
 
-        predictions = np.squeeze(np.squeeze(np.array(predictions), (1,)), (1,))
+        predictions = np.array(predictions)
+        if len(predictions.shape) > 3:
+            predictions = np.squeeze(np.squeeze(np.array(predictions), (1,)), (1,))
+        elif len(predictions.shape) == 3:
+            predictions = np.squeeze(np.array(predictions), (1,))
         print 'predictions.shape: ', predictions.shape
         np.savetxt(os.path.join(self.model_dir, 'outputs.csv'), predictions, delimiter=',')
         return predictions

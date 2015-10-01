@@ -111,13 +111,16 @@ class CSVReader(DataSource):
             (x_train, x_test) = data_manipulator.split(self.data[0], self.test_ratio)
 
             self.x_train = x_train.flatten()
-            self.x_test = x_test.flatten()
-
             self.p.plot_wave(self.x_train, 'original train data')
-            self.p.plot_wave(self.x_test, 'original test data')
 
-            return (self.window_data(self.x_train), self.y_train)\
-                , (self.window_data(self.x_test), self.y_test)
+            if self.test_ratio > 0.0:
+                self.x_test = x_test.flatten()
+                self.p.plot_wave(self.x_test, 'original test data')
+                return (self.window_data(self.x_train), self.y_train)\
+                    , (self.window_data(self.x_test), self.y_test)
+            else:
+                return (self.window_data(self.x_train), self.y_train)\
+                    , (np.array([]), np.array([]))
 
     def window_data(self, data):
         generator = data_manipulator.window(data, int(self.conf['--input_dim']))
